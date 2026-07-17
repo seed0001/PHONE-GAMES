@@ -1,0 +1,17 @@
+{
+  "name": "pocket-arcade",
+  "version": "1.0.0",
+  "description": "Browser game hub with themed tower defense games",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "better-sqlite3": "^11.9.1",
+    "express": "^4.21.2"
+  }
+}

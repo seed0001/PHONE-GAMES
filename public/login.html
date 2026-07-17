@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Sign In — Pocket Arcade</title>
+<link rel="stylesheet" href="/css/site.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🕹️</text></svg>">
+</head>
+<body>
+<div class="wrap">
+  <div class="auth-card">
+    <h1>🕹️ Pocket <span style="color:var(--accent2)">Arcade</span></h1>
+    <p class="sub">Sign in to play</p>
+
+    <div class="tabs">
+      <button id="tab-login" class="active" type="button">Sign In</button>
+      <button id="tab-register" type="button">Create Account</button>
+    </div>
+
+    <form id="auth-form" autocomplete="on">
+      <input type="text" id="username" placeholder="Username" autocomplete="username" maxlength="20" required>
+      <input type="password" id="password" placeholder="Password" autocomplete="current-password" required>
+      <div class="form-error" id="error"></div>
+      <button class="btn full" id="submit" type="submit">Sign In</button>
+    </form>
+  </div>
+</div>
+
+<script>
+let mode = 'login';
+const tabs = { login: document.getElementById('tab-login'), register: document.getElementById('tab-register') };
+const submitBtn = document.getElementById('submit');
+const errEl = document.getElementById('error');
+const pwEl = document.getElementById('password');
+
+function setMode(m) {
+  mode = m;
+  tabs.login.classList.toggle('active', m === 'login');
+  tabs.register.classList.toggle('active', m === 'register');
+  submitBtn.textContent = m === 'login' ? 'Sign In' : 'Create Account';
+  pwEl.autocomplete = m === 'login' ? 'current-password' : 'new-password';
+  errEl.textContent = '';
+}
+tabs.login.onclick = () => setMode('login');
+tabs.register.onclick = () => setMode('register');
+
+document.getElementById('auth-form').onsubmit = async (e) => {
+  e.preventDefault();
+  errEl.textContent = '';
+  submitBtn.disabled = true;
+  try {
+    const res = await fetch('/api/' + mode, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: document.getElementById('username').value.trim(),
+        password: pwEl.value
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error || 'Something went wrong.'; return; }
+    location.href = '/';
+  } catch {
+    errEl.textContent = 'Network error — try again.';
+  } finally {
+    submitBtn.disabled = false;
+  }
+};
+</script>
+</body>
+</html>

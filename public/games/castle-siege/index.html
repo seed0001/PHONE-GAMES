@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Castle Siege — Pocket Arcade</title>
+<link rel="stylesheet" href="/games/engine/td.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏰</text></svg>">
+<style>
+  :root {
+    --td-bg: #0e1a0c;
+    --td-panel: #1b2b17;
+    --td-border: #35502d;
+    --td-accent: #5c9c46;
+  }
+</style>
+</head>
+<body>
+<div id="game-root">
+  <header id="td-top">
+    <a class="home" href="/">←</a>
+    <div class="stat">❤️ <span id="ui-lives">20</span></div>
+    <div class="stat">🪙 <span id="ui-gold">0</span></div>
+    <div class="stat">🌊 <span id="ui-wave">0</span></div>
+    <div class="stat">⭐ <span id="ui-score">0</span></div>
+    <div class="title">🏰 Castle<br>Siege</div>
+  </header>
+  <div id="canvas-wrap">
+    <canvas id="game"></canvas>
+    <div id="tower-panel" hidden></div>
+  </div>
+  <div id="td-bottom">
+    <div id="tower-bar"></div>
+    <div id="controls">
+      <button id="btn-wave">▶ Wave 1</button>
+      <button id="btn-speed">1×</button>
+      <button id="btn-pause">⏸</button>
+    </div>
+  </div>
+  <div id="overlay" hidden></div>
+</div>
+<script src="/games/engine/td-engine.js"></script>
+<script src="config.js"></script>
+</body>
+</html>

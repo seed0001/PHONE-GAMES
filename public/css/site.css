@@ -1,0 +1,199 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg: #0f1220;
+  --bg2: #171b30;
+  --card: #1d2240;
+  --card-hi: #262c52;
+  --text: #eef0ff;
+  --muted: #9aa3c7;
+  --accent: #7c5cff;
+  --accent2: #38d9a9;
+  --danger: #ff6b6b;
+  --radius: 16px;
+}
+
+html, body {
+  background: radial-gradient(1200px 800px at 50% -200px, #232a55 0%, var(--bg) 60%);
+  color: var(--text);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+.wrap {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 20px 16px 60px;
+}
+
+/* ---- header ---- */
+.site-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0 24px;
+}
+.logo {
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  text-decoration: none;
+  color: var(--text);
+}
+.logo span { color: var(--accent2); }
+.user-chip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 14px;
+}
+.user-chip b { color: var(--text); }
+
+/* ---- buttons / inputs ---- */
+.btn {
+  display: inline-block;
+  border: 0;
+  border-radius: 12px;
+  padding: 12px 18px;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  color: #fff;
+  background: linear-gradient(135deg, var(--accent), #5a3fd4);
+  text-decoration: none;
+  text-align: center;
+  transition: transform 0.06s ease, filter 0.15s ease;
+}
+.btn:active { transform: scale(0.97); }
+.btn:hover { filter: brightness(1.1); }
+.btn.ghost {
+  background: transparent;
+  border: 1px solid #3a4275;
+  color: var(--muted);
+  padding: 8px 14px;
+  font-size: 13px;
+}
+.btn.full { width: 100%; }
+
+input[type="text"], input[type="password"] {
+  width: 100%;
+  padding: 13px 14px;
+  border-radius: 12px;
+  border: 1px solid #343c6e;
+  background: var(--bg2);
+  color: var(--text);
+  font-size: 16px;
+  outline: none;
+}
+input:focus { border-color: var(--accent); }
+
+/* ---- auth card ---- */
+.auth-card {
+  max-width: 380px;
+  margin: 8vh auto 0;
+  background: var(--card);
+  border: 1px solid #2c3363;
+  border-radius: var(--radius);
+  padding: 26px 24px 28px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.45);
+}
+.auth-card h1 { font-size: 22px; margin-bottom: 4px; text-align: center; }
+.auth-card .sub { color: var(--muted); font-size: 14px; text-align: center; margin-bottom: 22px; }
+.auth-card form { display: flex; flex-direction: column; gap: 12px; }
+.tabs {
+  display: flex;
+  background: var(--bg2);
+  border-radius: 12px;
+  padding: 4px;
+  margin-bottom: 18px;
+}
+.tabs button {
+  flex: 1;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  padding: 9px;
+  border-radius: 9px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.tabs button.active { background: var(--accent); color: #fff; }
+.form-error {
+  color: var(--danger);
+  font-size: 13px;
+  min-height: 17px;
+  text-align: center;
+}
+
+/* ---- game grid ---- */
+.section-title {
+  font-size: 15px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: var(--muted);
+  margin: 8px 0 16px;
+}
+.game-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 16px;
+}
+.game-card {
+  display: block;
+  background: var(--card);
+  border: 1px solid #2c3363;
+  border-radius: var(--radius);
+  overflow: hidden;
+  text-decoration: none;
+  color: var(--text);
+  transition: transform 0.12s ease, border-color 0.12s ease;
+}
+.game-card:hover { transform: translateY(-3px); border-color: var(--accent); }
+.game-card .art {
+  height: 110px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 52px;
+}
+.game-card .info { padding: 14px 16px 16px; }
+.game-card h3 { font-size: 17px; margin-bottom: 3px; }
+.game-card p { font-size: 13px; color: var(--muted); line-height: 1.4; }
+.game-card .meta {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.game-card .best { color: var(--accent2); font-weight: 700; }
+.badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 20px;
+  background: var(--bg2);
+  color: var(--muted);
+}
+
+.coming-soon {
+  opacity: 0.55;
+  border-style: dashed;
+  text-align: center;
+  padding: 30px 16px;
+  border-radius: var(--radius);
+  border: 1px dashed #3a4275;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+footer {
+  margin-top: 48px;
+  text-align: center;
+  color: #565f8f;
+  font-size: 12px;
+}
