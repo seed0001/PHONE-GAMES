@@ -17,57 +17,101 @@
     </div>
   </header>
 
-  <h2 class="section-title">Tower Defense</h2>
-  <div class="game-grid" id="game-grid"></div>
-
-  <h2 class="section-title" style="margin-top:34px">More Coming Soon</h2>
-  <div class="coming-soon">New games drop here as they're added. Check back soon! 🚧</div>
+  <div id="categories"></div>
 
   <footer>Pocket Arcade — tiny games, big fun</footer>
 </div>
 
 <script>
-const GAMES = [
+// Each category is a section on the hub. `showWave` controls whether best
+// scores read "1,234 (wave 5)" or just "1,234". A category with no games
+// renders its `soon` note instead of a grid.
+const CATEGORIES = [
   {
-    id: 'castle-siege', name: 'Castle Siege', emoji: '🏰',
-    desc: 'Classic medieval defense. Archers, catapults and wizards vs the goblin horde.',
-    art: 'linear-gradient(135deg,#2d5a27,#1a3a17)'
+    id: 'tower-defense', name: 'Tower Defense', badge: 'Tower Defense', showWave: true,
+    games: [
+      {
+        id: 'castle-siege', name: 'Castle Siege', emoji: '🏰',
+        desc: 'Classic medieval defense. Archers, catapults and wizards vs the goblin horde.',
+        art: 'linear-gradient(135deg,#2d5a27,#1a3a17)'
+      },
+      {
+        id: 'neon-breach', name: 'Neon Breach', emoji: '🤖',
+        desc: 'A rogue AI is flooding the grid. Deploy turrets and firewalls to stop the swarm.',
+        art: 'linear-gradient(135deg,#0b1030,#2a0a4a)'
+      },
+      {
+        id: 'void-bastion', name: 'Void Bastion', emoji: '🛸',
+        desc: 'Deep-space station defense. Lasers and singularities vs the alien armada.',
+        art: 'linear-gradient(135deg,#050514,#1a1040)'
+      },
+      {
+        id: 'grave-shift', name: 'Grave Shift', emoji: '🧟',
+        desc: 'The dead are restless. Hold the graveyard with holy fire and bone-crushing wards.',
+        art: 'linear-gradient(135deg,#1a1a24,#2d1f38)'
+      }
+    ]
   },
   {
-    id: 'neon-breach', name: 'Neon Breach', emoji: '🤖',
-    desc: 'A rogue AI is flooding the grid. Deploy turrets and firewalls to stop the swarm.',
-    art: 'linear-gradient(135deg,#0b1030,#2a0a4a)'
+    id: 'endless-runner', name: 'Endless Runner', badge: 'Runner',
+    games: [
+      {
+        id: 'neon-sprint', name: 'Neon Sprint', emoji: '⚡',
+        desc: 'Outrun the grid through a synthwave city. Jump the barriers, slide the drones.',
+        art: 'linear-gradient(135deg,#3d0a52,#07031f)'
+      },
+      {
+        id: 'temple-dash', name: 'Temple Dash', emoji: '🗿',
+        desc: 'You took the idol and the temple wants it back. Vines, rubble and very old bats.',
+        art: 'linear-gradient(135deg,#4e7a34,#123018)'
+      },
+      {
+        id: 'deep-current', name: 'Deep Current', emoji: '🌊',
+        desc: 'Ride the trench at speed. Coral below, jellyfish above, no brakes.',
+        art: 'linear-gradient(135deg,#0a5a72,#04121f)'
+      },
+      {
+        id: 'rooftop-run', name: 'Rooftop Run', emoji: '🌃',
+        desc: 'Twelve stories up with the alarm blaring. The fastest run of the four.',
+        art: 'linear-gradient(135deg,#3a2352,#080a1e)'
+      }
+    ]
   },
   {
-    id: 'void-bastion', name: 'Void Bastion', emoji: '🛸',
-    desc: 'Deep-space station defense. Lasers and singularities vs the alien armada.',
-    art: 'linear-gradient(135deg,#050514,#1a1040)'
-  },
-  {
-    id: 'grave-shift', name: 'Grave Shift', emoji: '🧟',
-    desc: 'The dead are restless. Hold the graveyard with holy fire and bone-crushing wards.',
-    art: 'linear-gradient(135deg,#1a1a24,#2d1f38)'
+    id: 'coming-soon', name: 'More Coming Soon', games: [],
+    soon: "New games drop here as they're added. Check back soon! 🚧"
   }
 ];
 
-const grid = document.getElementById('game-grid');
+const root = document.getElementById('categories');
+
+function card(g, cat, bests) {
+  const best = bests[g.id];
+  const bestTxt = best
+    ? `Best: ${best.score.toLocaleString()}${cat.showWave ? ` (wave ${best.wave})` : ''}`
+    : 'Not played yet';
+  return `
+    <a class="game-card" href="/games/${g.id}/">
+      <div class="art" style="background:${g.art}">${g.emoji}</div>
+      <div class="info">
+        <h3>${g.name}</h3>
+        <p>${g.desc}</p>
+        <div class="meta">
+          <span class="badge">${cat.badge || cat.name}</span>
+          <span class="${best ? 'best' : ''}">${bestTxt}</span>
+        </div>
+      </div>
+    </a>`;
+}
 
 function render(bests) {
-  grid.innerHTML = GAMES.map(g => {
-    const best = bests[g.id];
-    const bestTxt = best ? `Best: ${best.score.toLocaleString()} (wave ${best.wave})` : 'Not played yet';
+  root.innerHTML = CATEGORIES.map((cat, i) => {
+    const body = cat.games.length
+      ? `<div class="game-grid">${cat.games.map(g => card(g, cat, bests)).join('')}</div>`
+      : `<div class="coming-soon">${cat.soon || 'Coming soon 🚧'}</div>`;
     return `
-      <a class="game-card" href="/games/${g.id}/">
-        <div class="art" style="background:${g.art}">${g.emoji}</div>
-        <div class="info">
-          <h3>${g.name}</h3>
-          <p>${g.desc}</p>
-          <div class="meta">
-            <span class="badge">Tower Defense</span>
-            <span class="${best ? 'best' : ''}">${bestTxt}</span>
-          </div>
-        </div>
-      </a>`;
+      <h2 class="section-title"${i ? ' style="margin-top:34px"' : ''}>${cat.name}</h2>
+      ${body}`;
   }).join('');
 }
 

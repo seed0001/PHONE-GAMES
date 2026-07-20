@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Temple Dash — Pocket Arcade</title>
+<link rel="stylesheet" href="/games/engine/runner.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🗿</text></svg>">
+<style>
+  :root {
+    --rn-bg: #0e1a0c;
+    --rn-panel: #1b2b17;
+    --rn-border: #35502d;
+    --rn-accent: #d8a13a;
+  }
+</style>
+</head>
+<body>
+<div id="game-root">
+  <header id="rn-top">
+    <a class="home" href="/">←</a>
+    <div class="stat">📏 <span id="ui-dist">0</span></div>
+    <div class="stat">🍌 <span id="ui-coins">0</span></div>
+    <div class="stat">⭐ <span id="ui-score">0</span></div>
+    <div class="title">🗿 Temple<br>Dash</div>
+  </header>
+  <div id="canvas-wrap">
+    <canvas id="game"></canvas>
+    <div id="zone-banner"></div>
+    <div id="combo-meter"><span class="cm-x">×</span><span class="cm-n">0</span><span class="cm-label">STREAK</span></div>
+  </div>
+  <div id="rn-bottom">
+    <button id="btn-jump">⬆ JUMP</button>
+    <button id="btn-slide">⬇ SLIDE</button>
+    <button id="btn-pause">⏸</button>
+  </div>
+  <div class="hint">Tap to jump · tap again to double-jump · swipe down to slide</div>
+  <div id="overlay" hidden></div>
+</div>
+<script src="/games/engine/runner-engine.js"></script>
+<script src="config.js"></script>
+</body>
+</html>

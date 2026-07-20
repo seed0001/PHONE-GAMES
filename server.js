@@ -96,7 +96,12 @@ app.get('/api/me', (req, res) => {
 
 // ---------- scores API ----------
 
-const GAME_IDS = new Set(['castle-siege', 'neon-breach', 'void-bastion', 'grave-shift']);
+// Game ids grouped by hub category (mirrors CATEGORIES in public/index.html).
+const CATEGORY_GAMES = {
+  'tower-defense': ['castle-siege', 'neon-breach', 'void-bastion', 'grave-shift'],
+  'endless-runner': ['neon-sprint', 'temple-dash', 'deep-current', 'rooftop-run']
+};
+const GAME_IDS = new Set(Object.values(CATEGORY_GAMES).flat());
 
 app.post('/api/scores', requireAuth, (req, res) => {
   const { game, score, wave } = req.body || {};
