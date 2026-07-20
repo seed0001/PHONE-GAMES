@@ -215,6 +215,67 @@
 
   const MAX_PARTS = REDUCED ? 90 : 420;
 
+  // ---------- campaign scaling ----------
+
+  /* These games run ~200 waves. A flat exponential (the old 1.13^wave) either
+   * trivialises the first fifty waves or makes the last fifty impossible — at
+   * wave 200 it asks for 4e10x health. Growth is polynomial instead, with a
+   * mild per-act kicker every 25 waves, landing around 157x at wave 200. That
+   * is a curve tower upgrades and extra tower slots can actually keep pace
+   * with. Tune HP_POW/HP_RATE/ACT_MUL to make the campaign harder or softer. */
+  const HP_RATE = 0.085, HP_POW = 1.5, ACT_MUL = 1.11, ACT_LEN = 25;
+  function hpScale(wave) {
+    return Math.pow(1 + (wave - 1) * HP_RATE, HP_POW) *
+           Math.pow(ACT_MUL, Math.floor((wave - 1) / ACT_LEN));
+  }
+  // Enemies get a little quicker, but speed is capped — unreadable is not hard.
+  function speedScale(wave) { return Math.min(1.45, 1 + (wave - 1) * 0.0035); }
+  // What enemies hit your towers for has to climb too, or shields stop mattering.
+  function atkScale(wave) { return Math.pow(1 + (wave - 1) * 0.055, 1.25); }
+
+  const SHIELD_DELAY = 4;      // seconds out of combat before shields recharge
+  const SHIELD_REGEN = 0.22;   // fraction of max shield per second once charging
+  const MAX_LEVEL = 5;
+
+  /* Waves are generated from the config's `enemyTiers` rather than authored one
+   * by one — nobody is hand-writing 200 entries. Deterministic (no Math.random)
+   * so wave 137 is the same fight for everyone, which matters for leaderboards. */
+  function defaultWaves(cfg, n) {
+    const pools = (cfg.enemyTiers || []).filter(t => n >= t.at);
+    if (!pools.length) return [{ t: Object.keys(cfg.enemies)[0], n: 6, gap: 0.8 }];
+
+    // newest unlocked tiers dominate, older ones stay in the mix as filler
+    const weighted = [];
+    pools.forEach((tier, i) => {
+      const w = i >= pools.length - 2 ? 3 : 1;
+      for (const type of tier.types) for (let k = 0; k < w; k++) weighted.push(type);
+    });
+
+    const total = Math.min(72, Math.round(6 + n * 0.85));
+    const kinds = Math.max(1, Math.min(4, 1 + Math.floor(n / 12)));
+    /* Walk the weighted list from a wave-derived offset rather than sampling by
+     * a fixed stride: a stride that happens to share a factor with the list
+     * length lands on the same entry every time, which collapsed whole waves
+     * into 60-odd copies of one enemy. */
+    const chosen = [];
+    const start = (n * 7) % weighted.length;
+    for (let i = 0; i < weighted.length && chosen.length < kinds; i++) {
+      const type = weighted[(start + i) % weighted.length];
+      if (!chosen.includes(type)) chosen.push(type);
+    }
+
+    const gap = Math.max(0.26, 0.85 - n * 0.002);
+    const groups = chosen.map(t => ({ t, n: Math.max(1, Math.round(total / chosen.length)), gap }));
+
+    // boss every 10 waves, walking up the config's boss list; they stack up late
+    const bosses = cfg.bosses || [];
+    if (bosses.length && n % 10 === 0) {
+      const idx = Math.min(Math.floor(n / 10) - 1, bosses.length - 1);
+      groups.push({ t: bosses[idx], n: 1 + Math.floor(n / 70), gap: 3 });
+    }
+    return groups;
+  }
+
   class Game {
     constructor(cfg) {
       this.cfg = cfg;
@@ -250,6 +311,8 @@
       this.enemies = [];
       this.towers = [];
       this.projectiles = [];
+      this.eshots = [];        // enemy fire, aimed at towers
+      this.towersLost = 0;
       this.effects = [];
       this.particles = [];
       this.floaters = [];
@@ -694,11 +757,19 @@
         if (this.buildable(c, r) && this.gold >= this.placing.cost) {
           this.gold -= this.placing.cost;
           const t = this.placing;
+          const hp = t.hp || 120;
           this.towers.push({
             t, level: 1, col: c, row: r,
             x: (c + 0.5) * this.cell, y: (r + 0.5) * this.cell,
             cd: 0, invested: t.cost,
             dmg: t.dmg, range: t.range, rate: t.rate,
+            // structure: enemies shoot back, shields soak it first and recharge
+            hp, maxHp: hp,
+            baseShield: t.shield || 0,
+            shieldMax: t.shield || 0,
+            shield: t.shield || 0,
+            shieldDelay: 0, shieldHitT: 0, hurtT: 0,
+            wrecked: false, auraT: 0,
             angle: -Math.PI / 2, recoil: 0, born: this.now, flashT: 0
           });
           SFX.play('place');
@@ -730,33 +801,75 @@
       }
     }
 
-    upgradeCost(tw) { return Math.round(tw.t.cost * 0.85 * tw.level); }
+    upgradeCost(tw) { return Math.round(tw.t.cost * 0.85 * Math.pow(1.35, tw.level - 1) * tw.level); }
+    repairCost(tw) {
+      const missing = 1 - tw.hp / tw.maxHp;
+      const base = tw.wrecked ? tw.t.cost * 0.55 : tw.t.cost * 0.4;
+      return Math.max(5, Math.round(base * Math.max(missing, tw.wrecked ? 1 : 0.15)));
+    }
 
     showPanel(tw) {
       const panel = document.getElementById('tower-panel');
-      const maxed = tw.level >= 3;
+      const maxed = tw.level >= MAX_LEVEL;
       const upCost = this.upgradeCost(tw);
       const sellVal = Math.floor(tw.invested * 0.7);
+      const repCost = this.repairCost(tw);
+      const damaged = tw.wrecked || tw.hp < tw.maxHp - 0.5;
+      const isSupport = tw.t.type === 'support' || tw.t.type === 'repair';
+
+      const offence = isSupport
+        ? (tw.t.type === 'support'
+            ? `SHIELD +${Math.round(tw.t.shieldGrant * tw.level)} · RNG ${tw.range.toFixed(1)}`
+            : `REPAIR ${(tw.t.repairRate * tw.level).toFixed(1)}/s · RNG ${tw.range.toFixed(1)}`)
+        : `DMG ${Math.round(tw.dmg)} · RNG ${tw.range.toFixed(1)} · SPD ${tw.rate.toFixed(1)}/s`;
+
       panel.innerHTML = `
         <div class="tp-head">${tw.t.emoji} <b>${tw.t.name}</b> <span class="tp-lvl">Lv ${tw.level}</span></div>
-        <div class="tp-stats">DMG ${Math.round(tw.dmg)} · RNG ${tw.range.toFixed(1)} · SPD ${tw.rate.toFixed(1)}/s</div>
+        <div class="tp-stats">${offence}</div>
+        <div class="tp-stats">🛡️ ${Math.round(tw.shield)}/${Math.round(tw.shieldMax)} · ❤️ ${Math.max(0, Math.round(tw.hp))}/${Math.round(tw.maxHp)}${tw.wrecked ? ' · <b style="color:#ff6b6b">WRECKED</b>' : ''}</div>
         <div class="tp-desc">${tw.t.desc}</div>
         <div class="tp-btns">
-          <button id="tp-up" ${maxed || this.gold < upCost ? 'disabled' : ''}>${maxed ? 'MAX' : `⬆ Upgrade 🪙${upCost}`}</button>
-          <button id="tp-sell">💰 Sell 🪙${sellVal}</button>
+          <button id="tp-up" ${maxed || this.gold < upCost ? 'disabled' : ''}>${maxed ? 'MAX' : `⬆ 🪙${upCost}`}</button>
+          <button id="tp-rep" ${!damaged || this.gold < repCost ? 'disabled' : ''}>${tw.wrecked ? '🔧 Rebuild' : '🔧 Repair'} 🪙${repCost}</button>
+          <button id="tp-sell">💰 🪙${sellVal}</button>
         </div>`;
       panel.hidden = false;
       panel.classList.remove('pop');
       void panel.offsetWidth;
       panel.classList.add('pop');
+
+      document.getElementById('tp-rep').onclick = () => {
+        const cost = this.repairCost(tw);
+        if (!damaged || this.gold < cost) { SFX.play('deny'); return; }
+        this.gold -= cost;
+        tw.hp = tw.maxHp;
+        tw.wrecked = false;
+        tw.shieldDelay = SHIELD_DELAY;
+        tw.flashT = 0.5;
+        SFX.play('upgrade');
+        this.spawnParticles(20, {
+          x: tw.x, y: tw.y, color: ['#7cf7c4', '#ffffff'],
+          speed0: 40, speed1: 170, ttl0: 0.25, ttl1: 0.6, size0: 1.5, size1: 3.4, grav: -30, glow: true
+        });
+        this.floater(tw.x, tw.y - this.cell * 0.4, 'REPAIRED', { color: '#7cf7c4', size: this.cell * 0.3, ttl: 0.9 });
+        this.updateHUD();
+        this.updateBarAfford();
+        this.showPanel(tw);
+      };
+
       document.getElementById('tp-up').onclick = () => {
-        if (tw.level >= 3 || this.gold < this.upgradeCost(tw)) { SFX.play('deny'); return; }
+        if (tw.level >= MAX_LEVEL || this.gold < this.upgradeCost(tw)) { SFX.play('deny'); return; }
         this.gold -= this.upgradeCost(tw);
         tw.invested += this.upgradeCost(tw);
         tw.level++;
-        tw.dmg *= 1.6;
-        tw.range *= 1.08;
-        tw.rate *= 1.12;
+        tw.dmg *= 1.55;
+        tw.range *= 1.06;
+        tw.rate *= 1.1;
+        // upgrades harden the tower as well as arm it
+        const hpRatio = tw.hp / tw.maxHp;
+        tw.maxHp = Math.round(tw.maxHp * 1.35);
+        tw.hp = tw.maxHp * hpRatio;
+        tw.baseShield = Math.round(tw.baseShield * 1.4);
         tw.flashT = 0.5;
         SFX.play('upgrade');
         this.addShake(this.cell * 0.14);
@@ -778,6 +891,8 @@
         });
         this.floater(tw.x, tw.y - this.cell * 0.3, `+${sellVal}`, { color: '#ffd700', size: this.cell * 0.34 });
         this.towers = this.towers.filter(x => x !== tw);
+        // drop any enemy fire still homing on the tower that just left
+        this.eshots = this.eshots.filter(s => s.tw !== tw);
         this.selected = null;
         this.hidePanel();
         this.updateHUD();
@@ -823,7 +938,9 @@
     startWave() {
       if (this.waveActive || this.over) return;
       this.wave++;
-      const groups = this.cfg.waves(this.wave);
+      const groups = this.cfg.waves
+        ? this.cfg.waves(this.wave)
+        : defaultWaves(this.cfg, this.wave);
       this.spawnQueue = [];
       for (const g of groups) {
         for (let i = 0; i < g.n; i++) this.spawnQueue.push({ type: g.t, gap: g.gap });
@@ -840,11 +957,12 @@
 
     spawnEnemy(type) {
       const e = this.cfg.enemies[type];
-      const hpMul = Math.pow(1.13, this.wave - 1);
+      const hpMul = hpScale(this.wave);
       const [x0, y0] = this.wpPx[0];
       const [x1, y1] = this.wpPx[1];
       const d = dist(x0, y0, x1, y1);
       const dx = (x1 - x0) / d, dy = (y1 - y0) / d;
+      const shield = (e.shield || 0) * hpMul;
       this.enemies.push({
         type, e,
         x: x0 - dx * this.cell * 1.2,
@@ -852,10 +970,13 @@
         wp: 0,
         hp: e.hp * hpMul,
         maxHp: e.hp * hpMul,
+        shield, maxShield: shield, shieldHitT: 0,
         hpGhost: 1,
         traveled: 0,
         slowUntil: 0,
         slowFactor: 1,
+        atkCd: rand(0.3, 1.2),        // stagger opening shots so volleys aren't synchronised
+        healCd: rand(0.5, 1.5),
         wobble: Math.random() * Math.PI * 2,
         flashT: 0,
         punch: 0
@@ -866,7 +987,7 @@
       });
     }
 
-    reward(e) { return Math.ceil(e.reward * (1 + (this.wave - 1) * 0.03)); }
+    reward(e) { return Math.ceil(e.reward * (1 + (this.wave - 1) * 0.06)); }
 
     // ---------- combat ----------
 
@@ -941,6 +1062,31 @@
 
     hurt(en, dmg, crit) {
       if (en.hp <= 0) return;
+
+      // armour is flat reduction, but can never fully negate a hit
+      if (en.e.armor) dmg = Math.max(dmg * 0.15, dmg - en.e.armor);
+
+      // shields soak first and stay down for the rest of the run once broken
+      if (en.shield > 0) {
+        const absorbed = Math.min(en.shield, dmg);
+        en.shield -= absorbed;
+        dmg -= absorbed;
+        en.shieldHitT = 0.2;
+        if (en.shield <= 0) {
+          SFX.play('hit');
+          this.effects.push({
+            kind: 'ring', x: en.x, y: en.y, r: this.cell * 0.8,
+            ttl: 0.35, max: 0.35, color: en.e.shieldColor || '#7ad1ff'
+          });
+        }
+      }
+      if (dmg <= 0) {
+        this.floater(en.x, en.y - this.cell * 0.3, 'BLOCKED', {
+          color: en.e.shieldColor || '#7ad1ff', size: this.cell * 0.24, ttl: 0.5
+        });
+        return;
+      }
+
       en.hp -= dmg;
       en.flashT = 0.12;
       en.punch = 1;
@@ -1009,6 +1155,76 @@
 
       this.updateHUD();
       this.updateBarAfford();
+    }
+
+    // ---------- towers under fire ----------
+
+    /* Damage lands on shields first. Shields recharge on their own after a lull,
+     * so a tower that gets poked survives; one that gets focused does not.
+     * Structure damage does NOT come back on its own — you pay to repair it,
+     * which is what makes the shield towers worth their slot. */
+    hurtTower(tw, dmg) {
+      if (tw.wrecked) return;
+      tw.shieldDelay = SHIELD_DELAY;
+
+      if (tw.shield > 0) {
+        const absorbed = Math.min(tw.shield, dmg);
+        tw.shield -= absorbed;
+        dmg -= absorbed;
+        tw.shieldHitT = 0.25;
+      }
+      if (dmg <= 0) return;
+
+      tw.hp -= dmg;
+      tw.hurtT = 0.2;
+      this.spawnParticles(3, {
+        x: tw.x, y: tw.y, color: ['#ff9f9f', '#ffffff'],
+        speed0: 30, speed1: 120, ttl0: 0.12, ttl1: 0.3, size0: 1, size1: 2.4, grav: 200
+      });
+      if (tw.hp <= 0) this.wreckTower(tw);
+    }
+
+    wreckTower(tw) {
+      tw.hp = 0;
+      tw.wrecked = true;
+      tw.shield = 0;
+      SFX.play('lose');
+      this.addShake(this.cell * 0.3);
+      this.screenFlash('rgba(255,80,40,0.22)', 400);
+      this.effects.push({
+        kind: 'pop', x: tw.x, y: tw.y, ttl: 0.5, max: 0.5,
+        emoji: '💥', size: this.cell * 1.3
+      });
+      this.spawnParticles(30, {
+        x: tw.x, y: tw.y, color: ['#ff6b6b', '#ffd166', '#888899'],
+        speed0: 60, speed1: 280, ttl0: 0.3, ttl1: 0.8, size0: 1.5, size1: 4.5,
+        grav: 420, shape: 'shard'
+      });
+      this.floater(tw.x, tw.y - this.cell * 0.4, 'WRECKED', {
+        color: '#ff6b6b', size: this.cell * 0.32, ttl: 1.1
+      });
+      if (this.selected === tw) this.showPanel(tw);
+    }
+
+    enemyShoot(en, tw) {
+      const a = en.e.atk;
+      const dmg = a.dmg * atkScale(this.wave);
+      SFX.play('shoot');
+      if (a.type === 'melee') {
+        this.hurtTower(tw, dmg);
+        this.effects.push({
+          kind: 'beam', x1: en.x, y1: en.y, x2: tw.x, y2: tw.y,
+          ttl: 0.12, max: 0.12, color: a.color || '#ff6b6b'
+        });
+      } else {
+        this.eshots.push({
+          x: en.x, y: en.y, tw, dmg,
+          speed: (a.speed || 6) * this.cell,
+          color: a.color || '#ff6b6b',
+          size: a.size || 0.16,
+          rot: 0, trail: []
+        });
+      }
     }
 
     applyHit(p, x, y) {
@@ -1092,10 +1308,59 @@
       for (const en of this.enemies) {
         if (en.hp <= 0) continue;
         if (en.flashT > 0) en.flashT -= dt;
+        if (en.shieldHitT > 0) en.shieldHitT -= dt;
         if (en.punch > 0) en.punch = Math.max(0, en.punch - dt * 6);
         en.hpGhost += (en.hp / en.maxHp - en.hpGhost) * Math.min(1, dt * 4);
+
+        // shooters fire on the move — stopping to aim stalls whole waves
+        if (en.e.atk) {
+          en.atkCd -= dt;
+          if (en.atkCd <= 0) {
+            const rangePx = en.e.atk.range * this.cell;
+            let best = null, bd = rangePx;
+            for (const tw of this.towers) {
+              if (tw.wrecked) continue;
+              const d = dist(en.x, en.y, tw.x, tw.y);
+              if (d <= bd) { bd = d; best = tw; }
+            }
+            if (best) {
+              this.enemyShoot(en, best);
+              en.atkCd = 1 / en.e.atk.rate;
+            } else {
+              en.atkCd = 0.25;   // nothing in reach, re-check shortly
+            }
+          }
+        }
+
+        // medics keep the wave alive; kill them first
+        if (en.e.healRate) {
+          en.healCd -= dt;
+          if (en.healCd <= 0) {
+            en.healCd = 1;
+            const rPx = (en.e.healRange || 2) * this.cell;
+            let healed = 0;
+            for (const o of this.enemies) {
+              if (o === en || o.hp <= 0 || o.hp >= o.maxHp) continue;
+              if (dist(en.x, en.y, o.x, o.y) > rPx) continue;
+              o.hp = Math.min(o.maxHp, o.hp + o.maxHp * en.e.healRate);
+              healed++;
+            }
+            if (healed) {
+              this.effects.push({
+                kind: 'ring', x: en.x, y: en.y, r: rPx,
+                ttl: 0.4, max: 0.4, color: en.e.healColor || '#7cf7c4'
+              });
+            }
+          }
+        }
+
+        // self-regenerating types heal unless something is actively hitting them
+        if (en.e.regen && en.flashT <= 0) {
+          en.hp = Math.min(en.maxHp, en.hp + en.maxHp * en.e.regen * dt);
+        }
+
         const slow = this.now < en.slowUntil ? en.slowFactor : 1;
-        let move = en.e.speed * this.cell * slow * dt;
+        let move = en.e.speed * speedScale(this.wave) * this.cell * slow * dt;
         while (move > 0 && en.wp < this.wpPx.length) {
           const [tx, ty] = this.wpPx[en.wp];
           const d = dist(en.x, en.y, tx, ty);
@@ -1124,12 +1389,52 @@
       }
       this.enemies = this.enemies.filter(en => en.hp > 0);
 
+      // support towers project shield capacity onto everything in range, so a
+      // tower's ceiling is recomputed each frame rather than stored
+      for (const tw of this.towers) tw.shieldMax = tw.baseShield;
+      for (const src of this.towers) {
+        if (src.wrecked || src.t.type !== 'support') continue;
+        const rPx = src.range * this.cell;
+        const grant = src.t.shieldGrant * src.level;
+        for (const tw of this.towers) {
+          if (tw === src || tw.wrecked) continue;
+          if (dist(src.x, src.y, tw.x, tw.y) <= rPx) tw.shieldMax += grant;
+        }
+      }
+
       // towers
       for (const tw of this.towers) {
+        if (tw.hurtT > 0) tw.hurtT -= dt;
+        if (tw.shieldHitT > 0) tw.shieldHitT -= dt;
+
+        // shields recharge after a lull; structure damage never self-heals
+        if (tw.shieldDelay > 0) tw.shieldDelay -= dt;
+        else if (tw.shield < tw.shieldMax && !tw.wrecked) {
+          tw.shield = Math.min(tw.shieldMax, tw.shield + tw.shieldMax * SHIELD_REGEN * dt);
+        }
+        if (tw.shield > tw.shieldMax) tw.shield = tw.shieldMax;
+
+        if (tw.wrecked) continue;   // rubble does nothing until you pay to rebuild
+
         tw.cd -= dt;
         if (tw.recoil > 0) tw.recoil = Math.max(0, tw.recoil - dt * 7);
         if (tw.muzzleT > 0) tw.muzzleT -= dt;
         if (tw.flashT > 0) tw.flashT -= dt;
+
+        // repair rigs mend neighbours instead of shooting
+        if (tw.t.type === 'repair') {
+          tw.auraT += dt;
+          const rPx = tw.range * this.cell;
+          const rate = tw.t.repairRate * tw.level;
+          for (const o of this.towers) {
+            if (o === tw || o.wrecked || o.hp >= o.maxHp) continue;
+            if (dist(tw.x, tw.y, o.x, o.y) > rPx) continue;
+            o.hp = Math.min(o.maxHp, o.hp + rate * dt);
+          }
+          continue;
+        }
+        if (tw.t.type === 'support') { tw.auraT += dt; continue; }
+
         const target = this.findTarget(tw);
         if (target) {
           const want = Math.atan2(target.y - (tw.y - this.cell * 0.2), target.x - tw.x);
@@ -1162,6 +1467,27 @@
         }
       }
       this.projectiles = this.projectiles.filter(p => !p.done);
+
+      // enemy fire — flies to where the tower is, since towers don't move
+      for (const s of this.eshots) {
+        s.trail.push(s.x, s.y);
+        if (s.trail.length > 10) s.trail.splice(0, 2);
+        s.rot += dt * 9;
+        const d = dist(s.x, s.y, s.tw.x, s.tw.y);
+        const step = s.speed * dt;
+        if (d <= step || d < 2) {
+          this.hurtTower(s.tw, s.dmg);
+          this.effects.push({
+            kind: 'ring', x: s.tw.x, y: s.tw.y, r: this.cell * 0.45,
+            ttl: 0.25, max: 0.25, color: s.color
+          });
+          s.done = true;
+        } else {
+          s.x += (s.tw.x - s.x) / d * step;
+          s.y += (s.tw.y - s.y) / d * step;
+        }
+      }
+      this.eshots = this.eshots.filter(s => !s.done);
 
       // particles
       for (const pt of this.particles) {
@@ -1301,6 +1627,7 @@
       this.drawTowers(t);
       this.drawEnemies(t);
       this.drawProjectiles();
+      this.drawEnemyShots();
       this.drawEffects();
       this.drawParticles();
       this.drawFloaters();
@@ -1425,16 +1752,40 @@
         ctx.beginPath();
         ctx.roundRect(x + pad, y + pad, s, s, cell * 0.2);
         ctx.fill();
-        ctx.strokeStyle = rgba(tw.t.projColor, tw.level >= 3 ? 0.85 : 0.4);
-        ctx.lineWidth = tw.level >= 3 ? 2 : 1.2;
+        ctx.strokeStyle = rgba(tw.t.projColor, tw.level >= MAX_LEVEL ? 0.85 : 0.4);
+        ctx.lineWidth = tw.level >= MAX_LEVEL ? 2 : 1.2;
         ctx.stroke();
 
         // fully upgraded towers get a halo
-        if (tw.level >= 3) {
+        if (tw.level >= MAX_LEVEL) {
           const a = 0.18 + Math.sin(t * 3.5 + tw.col) * 0.1;
           ctx.strokeStyle = rgba(tw.t.projColor, a);
           ctx.lineWidth = 4;
           ctx.stroke();
+        }
+
+        // shield bubble — brightness tracks how much charge is left
+        if (tw.shield > 0.5 && !tw.wrecked) {
+          const frac = clamp(tw.shield / Math.max(1, tw.shieldMax), 0, 1);
+          const a = (tw.shieldHitT > 0 ? 0.55 : 0.14 + frac * 0.16) +
+                    Math.sin(t * 2.2 + tw.col * 1.3) * 0.03;
+          ctx.strokeStyle = rgba(tw.shieldHitT > 0 ? '#ffffff' : '#5bc8ff', a);
+          ctx.lineWidth = tw.shieldHitT > 0 ? 3 : 2;
+          ctx.beginPath();
+          ctx.arc(tw.x, tw.y, cell * 0.52, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+
+        // support and repair rigs breathe a soft aura at their reach
+        if ((tw.t.type === 'support' || tw.t.type === 'repair') && !tw.wrecked) {
+          const a = 0.05 + Math.sin(tw.auraT * 1.8) * 0.025;
+          ctx.strokeStyle = rgba(tw.t.projColor, a * 4);
+          ctx.lineWidth = 1.5;
+          ctx.setLineDash([cell * 0.12, cell * 0.14]);
+          ctx.beginPath();
+          ctx.arc(tw.x, tw.y, tw.range * cell, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.setLineDash([]);
         }
 
         // just-upgraded flare
@@ -1470,16 +1821,83 @@
         }
 
         ctx.font = `${cell * 0.62}px ${EMOJI_FONT}`;
-        ctx.fillText(tw.t.emoji, tw.x - Math.cos(tw.angle) * rec, tw.y - cell * 0.03 - Math.sin(tw.angle) * rec);
+        ctx.globalAlpha = tw.wrecked ? 0.35 : 1;
+        ctx.fillText(tw.wrecked ? '🧱' : tw.t.emoji,
+          tw.x - Math.cos(tw.angle) * rec, tw.y - cell * 0.03 - Math.sin(tw.angle) * rec);
+        ctx.globalAlpha = 1;
 
         // level chevrons
         ctx.fillStyle = '#ffd700';
         for (let i = 0; i < tw.level - 1; i++) {
           ctx.beginPath();
-          ctx.arc(x + cell * 0.24 + i * cell * 0.17, y + cell - cell * 0.15, cell * 0.055, 0, Math.PI * 2);
+          ctx.arc(x + cell * 0.2 + i * cell * 0.13, y + cell - cell * 0.13, cell * 0.045, 0, Math.PI * 2);
           ctx.fill();
         }
+
+        this.drawTowerBars(tw, x, y, cell, t);
         ctx.restore();
+      }
+    }
+
+    /* Bars are deliberately quiet: hidden entirely on a healthy tower with full
+     * shields, so a busy board doesn't turn into a wall of meters. They appear
+     * the moment something is wrong. */
+    drawTowerBars(tw, x, y, cell, t) {
+      const ctx = this.ctx;
+      const hurt = tw.hp < tw.maxHp - 0.5 || tw.wrecked;
+      const shieldLow = tw.shieldMax > 0 && tw.shield < tw.shieldMax - 0.5;
+      const active = tw.shieldHitT > 0 || tw.hurtT > 0;
+      if (!hurt && !shieldLow && !active) return;
+
+      const bw = cell * 0.7, bh = Math.max(2, cell * 0.05);
+      const bx = x + (cell - bw) / 2;
+      let by = y + cell * 0.06;
+
+      if (tw.shieldMax > 0) {
+        ctx.fillStyle = 'rgba(0,0,0,0.55)';
+        ctx.fillRect(bx, by, bw, bh);
+        ctx.fillStyle = tw.shieldHitT > 0 ? '#ffffff' : '#5bc8ff';
+        ctx.fillRect(bx, by, bw * clamp(tw.shield / tw.shieldMax, 0, 1), bh);
+        by += bh + 1;
+      }
+
+      ctx.fillStyle = 'rgba(0,0,0,0.55)';
+      ctx.fillRect(bx, by, bw, bh);
+      const frac = clamp(tw.hp / tw.maxHp, 0, 1);
+      ctx.fillStyle = tw.hurtT > 0 ? '#ffffff' : (frac > 0.5 ? '#7cf7c4' : frac > 0.25 ? '#ffd166' : '#ff6b6b');
+      ctx.fillRect(bx, by, bw * frac, bh);
+
+      // a wrecked tower pulses so you can find it on a crowded board
+      if (tw.wrecked) {
+        const a = 0.25 + Math.sin(t * 5) * 0.15;
+        ctx.strokeStyle = rgba('#ff6b6b', a);
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.roundRect(x + cell * 0.09, y + cell * 0.09, cell * 0.82, cell * 0.82, cell * 0.2);
+        ctx.stroke();
+      }
+    }
+
+    drawEnemyShots() {
+      const ctx = this.ctx, cell = this.cell;
+      for (const s of this.eshots) {
+        if (s.trail.length > 3) {
+          ctx.strokeStyle = rgba(s.color, 0.35);
+          ctx.lineWidth = cell * s.size * 0.7;
+          ctx.lineCap = 'round';
+          ctx.beginPath();
+          ctx.moveTo(s.trail[0], s.trail[1]);
+          for (let i = 2; i < s.trail.length; i += 2) ctx.lineTo(s.trail[i], s.trail[i + 1]);
+          ctx.stroke();
+        }
+        const g = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, cell * s.size * 1.6);
+        g.addColorStop(0, '#ffffff');
+        g.addColorStop(0.45, s.color);
+        g.addColorStop(1, rgba(s.color, 0));
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, cell * s.size * 1.6, 0, Math.PI * 2);
+        ctx.fill();
       }
     }
 
@@ -1511,6 +1929,17 @@
           ctx.beginPath();
           ctx.arc(en.x, en.y, size * 0.95, 0, Math.PI * 2);
           ctx.fill();
+        }
+
+        // enemy shield bubble — has to read differently from the boss aura
+        if (en.shield > 0.5) {
+          const frac = clamp(en.shield / Math.max(1, en.maxShield), 0, 1);
+          const a = (en.shieldHitT > 0 ? 0.7 : 0.2 + frac * 0.25);
+          ctx.strokeStyle = rgba(en.shieldHitT > 0 ? '#ffffff' : (en.e.shieldColor || '#7ad1ff'), a);
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(en.x, en.y + wob, size * 0.6, 0, Math.PI * 2);
+          ctx.stroke();
         }
 
         // white-hot flash on hit

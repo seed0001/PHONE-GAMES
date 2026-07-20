@@ -17,7 +17,31 @@ plus a `config.js`.
 | 🛸 Void Bastion | Deep space — lasers and singularities vs the alien armada |
 | 🧟 Grave Shift | Undead — holy fire vs the restless dead |
 
-A config defines the map, theme, towers, enemies and waves.
+Each is a 200-wave campaign with 10 towers and 23 enemy types including 8
+bosses. A config defines the map, theme, towers, enemies and enemy tiers.
+
+**Towers fight back and can be destroyed.** Every tower has structure (`hp`)
+and an optional recharging `shield`. Enemies with an `atk` block shoot at your
+towers as they advance; shields soak damage first and recharge after a lull,
+but structure damage does not heal on its own — you pay to repair, or the
+tower wrecks and goes silent until you rebuild it. Two tower types exist to
+answer this: a **support** tower that projects shield capacity onto everything
+in range, and a **repair** tower that mends structure over time. Neither
+attacks, so both cost you a firing slot.
+
+Enemies vary by more than health: `armor` (flat reduction), `shield` (a soak
+layer that stays down once broken), `regen` (self-heal that pauses while being
+hit), `healRate` (medics that mend the wave around them), and `atk`.
+
+**Waves are generated, not authored** — nobody hand-writes 200 entries.
+`enemyTiers` says what unlocks when; the engine leans on the two most recently
+unlocked tiers so the fight keeps changing, and drops a boss every 10 waves.
+Generation is deterministic, so wave 137 is the same fight for every player,
+which is what makes the leaderboards mean anything.
+
+Difficulty is a polynomial with a per-act kicker (`hpScale` in the engine),
+reaching ~157x health at wave 200. The old curve was `1.13^wave`, which is
+fine for 20 waves and asks for 4x10^10 health at 200.
 
 ### 🏃 Endless Runner — [`engine/runner-engine.js`](public/games/engine/runner-engine.js)
 

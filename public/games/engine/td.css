@@ -199,10 +199,12 @@ canvas {
 #tower-panel .tp-btns { display: flex; gap: 8px; }
 #tower-panel .tp-btns button {
   flex: 1;
+  min-width: 0;
   border: 0;
   border-radius: 10px;
-  padding: 10px;
-  font-size: 13px;
+  padding: 10px 6px;
+  font-size: 12px;
+  white-space: nowrap;
   font-weight: 700;
   cursor: pointer;
   color: #fff;
@@ -212,19 +214,29 @@ canvas {
 #tower-panel .tp-btns button:active { transform: scale(0.94); filter: brightness(1.25); }
 #tower-panel .tp-btns button:disabled { opacity: 0.4; }
 #tower-panel #tp-sell { background: #3a3a5c; }
+#tower-panel #tp-rep { background: #2f6b57; }
 
 /* bottom bar */
 #td-bottom {
   padding: 8px 10px calc(10px + env(safe-area-inset-bottom));
 }
+/* Ten-odd towers per game no longer divide a row evenly, so the bar scrolls
+   sideways with fixed-width buttons instead of squeezing them to slivers. */
 #tower-bar {
   display: flex;
   gap: 8px;
   margin-bottom: 8px;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding-bottom: 2px;
 }
+#tower-bar::-webkit-scrollbar { display: none; }
 .tower-btn {
   position: relative;
-  flex: 1;
+  flex: 0 0 72px;
+  scroll-snap-align: start;
   display: flex;
   flex-direction: column;
   align-items: center;
