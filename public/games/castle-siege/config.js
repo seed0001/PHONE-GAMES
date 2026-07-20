@@ -19,7 +19,13 @@ TD.start({
     decorDensity: 0.13,
     spawnEmoji: '⛺',
     baseEmoji: '🏰',
-    deathEmoji: '💥'
+    deathEmoji: '💥',
+    ambient: 'motes',          // fireflies drifting over the woods
+    ambientColor: '#ffe08a',
+    ambientCount: 24,
+    spawnGlow: '#ff6b3d',
+    baseGlow: '#ffd166',
+    flowColor: '#f3d9a4'
   },
 
   towers: [
@@ -30,11 +36,11 @@ TD.start({
   ],
 
   enemies: {
-    goblin: { emoji: '👺', hp: 30, speed: 1.5, reward: 8, size: 0.52 },
-    wolf: { emoji: '🐺', hp: 22, speed: 2.4, reward: 7, size: 0.5 },
-    knight: { emoji: '🛡️', hp: 95, speed: 1.0, reward: 14, size: 0.55 },
-    troll: { emoji: '🧌', hp: 240, speed: 0.75, reward: 28, size: 0.68 },
-    dragon: { emoji: '🐉', hp: 1400, speed: 0.85, reward: 150, size: 0.9, dmg: 5 }
+    goblin: { emoji: '👺', hp: 30, speed: 1.5, reward: 8, size: 0.52, color: '#7bc47f' },
+    wolf: { emoji: '🐺', hp: 22, speed: 2.4, reward: 7, size: 0.5, color: '#9aa5b1' },
+    knight: { emoji: '🛡️', hp: 95, speed: 1.0, reward: 14, size: 0.55, color: '#c0c8d8' },
+    troll: { emoji: '🧌', hp: 240, speed: 0.75, reward: 28, size: 0.68, color: '#8f7a5c' },
+    dragon: { emoji: '🐉', hp: 1400, speed: 0.85, reward: 150, size: 0.9, dmg: 5, color: '#ff6b3d', boss: true, name: 'ANCIENT DRAGON' }
   },
 
   waves(n) {

@@ -19,7 +19,13 @@ TD.start({
     decorDensity: 0.14,
     spawnEmoji: '⚰️',
     baseEmoji: '⛪',
-    deathEmoji: '💨'
+    deathEmoji: '💨',
+    ambient: 'fog',            // graveyard mist rolling across the plots
+    ambientColor: '#b9a8d6',
+    ambientCount: 16,
+    spawnGlow: '#7b5cff',
+    baseGlow: '#ffe8a3',
+    flowColor: '#cbbfae'
   },
 
   towers: [
@@ -30,11 +36,11 @@ TD.start({
   ],
 
   enemies: {
-    zombie: { emoji: '🧟', hp: 35, speed: 1.2, reward: 8, size: 0.55 },
-    bat: { emoji: '🦇', hp: 18, speed: 2.8, reward: 7, size: 0.48 },
-    ghost: { emoji: '👻', hp: 60, speed: 1.6, reward: 11, size: 0.55 },
-    abomination: { emoji: '👹', hp: 150, speed: 0.7, reward: 18, size: 0.65 },
-    lich: { emoji: '☠️', hp: 1500, speed: 0.8, reward: 160, size: 0.9, dmg: 5 }
+    zombie: { emoji: '🧟', hp: 35, speed: 1.2, reward: 8, size: 0.55, color: '#8fbf6a' },
+    bat: { emoji: '🦇', hp: 18, speed: 2.8, reward: 7, size: 0.48, color: '#6b5b8a' },
+    ghost: { emoji: '👻', hp: 60, speed: 1.6, reward: 11, size: 0.55, color: '#dfe6ff' },
+    abomination: { emoji: '👹', hp: 150, speed: 0.7, reward: 18, size: 0.65, color: '#d1495b' },
+    lich: { emoji: '☠️', hp: 1500, speed: 0.8, reward: 160, size: 0.9, dmg: 5, color: '#a37bff', boss: true, name: 'THE LICH' }
   },
 
   waves(n) {

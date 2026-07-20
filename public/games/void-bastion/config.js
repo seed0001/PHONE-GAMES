@@ -19,7 +19,13 @@ TD.start({
     decorDensity: 0.11,
     spawnEmoji: '🌌',
     baseEmoji: '🛰️',
-    deathEmoji: '💥'
+    deathEmoji: '💥',
+    ambient: 'stars',          // twinkling starfield behind the board
+    ambientColor: '#dfe9ff',
+    ambientCount: 40,
+    spawnGlow: '#b388ff',
+    baseGlow: '#4dd0e1',
+    flowColor: '#b388ff'
   },
 
   towers: [
@@ -30,11 +36,11 @@ TD.start({
   ],
 
   enemies: {
-    scout: { emoji: '👽', hp: 30, speed: 1.5, reward: 8, size: 0.52 },
-    raider: { emoji: '🚀', hp: 22, speed: 2.6, reward: 8, size: 0.5 },
-    stalker: { emoji: '🦑', hp: 60, speed: 1.7, reward: 12, size: 0.55 },
-    hulk: { emoji: '🪨', hp: 130, speed: 0.7, reward: 16, size: 0.62 },
-    mothership: { emoji: '🛸', hp: 1600, speed: 0.75, reward: 170, size: 0.95, dmg: 5 }
+    scout: { emoji: '👽', hp: 30, speed: 1.5, reward: 8, size: 0.52, color: '#7cf7c4' },
+    raider: { emoji: '🚀', hp: 22, speed: 2.6, reward: 8, size: 0.5, color: '#ff7043' },
+    stalker: { emoji: '🦑', hp: 60, speed: 1.7, reward: 12, size: 0.55, color: '#b388ff' },
+    hulk: { emoji: '🪨', hp: 130, speed: 0.7, reward: 16, size: 0.62, color: '#a1887f' },
+    mothership: { emoji: '🛸', hp: 1600, speed: 0.75, reward: 170, size: 0.95, dmg: 5, color: '#4dd0e1', boss: true, name: 'MOTHERSHIP' }
   },
 
   waves(n) {

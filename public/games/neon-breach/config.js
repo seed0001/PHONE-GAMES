@@ -19,7 +19,14 @@ TD.start({
     decorDensity: 0.09,
     spawnEmoji: '🌐',
     baseEmoji: '🗄️',
-    deathEmoji: '💥'
+    deathEmoji: '💥',
+    ambient: 'rain',           // datastream falling down the grid
+    ambientColor: '#00e5ff',
+    ambientCount: 30,
+    scanlines: true,
+    spawnGlow: '#ff2d95',
+    baseGlow: '#00e5ff',
+    flowColor: '#00e5ff'
   },
 
   towers: [
@@ -30,11 +37,11 @@ TD.start({
   ],
 
   enemies: {
-    crawler: { emoji: '🐛', hp: 28, speed: 1.6, reward: 8, size: 0.5 },
-    drone: { emoji: '🚁', hp: 20, speed: 2.5, reward: 7, size: 0.5 },
-    glitch: { emoji: '👾', hp: 55, speed: 1.8, reward: 11, size: 0.55 },
-    mech: { emoji: '🦾', hp: 105, speed: 0.95, reward: 15, size: 0.58 },
-    core: { emoji: '🧠', hp: 1500, speed: 0.8, reward: 160, size: 0.9, dmg: 5 }
+    crawler: { emoji: '🐛', hp: 28, speed: 1.6, reward: 8, size: 0.5, color: '#7cf77c' },
+    drone: { emoji: '🚁', hp: 20, speed: 2.5, reward: 7, size: 0.5, color: '#9fd8ff' },
+    glitch: { emoji: '👾', hp: 55, speed: 1.8, reward: 11, size: 0.55, color: '#c084fc' },
+    mech: { emoji: '🦾', hp: 105, speed: 0.95, reward: 15, size: 0.58, color: '#ffb703' },
+    core: { emoji: '🧠', hp: 1500, speed: 0.8, reward: 160, size: 0.9, dmg: 5, color: '#ff2d95', boss: true, name: 'THE CORE' }
   },
 
   waves(n) {
