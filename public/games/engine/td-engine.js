@@ -273,7 +273,30 @@
       const idx = Math.min(Math.floor(n / 10) - 1, bosses.length - 1);
       groups.push({ t: bosses[idx], n: 1 + Math.floor(n / 70), gap: 3 });
     }
+
+    /* Roamers ignore the path entirely and hunt your towers, so they are
+     * scheduled separately from the marching order — one at a time, on their
+     * own cadence, never doubled up with a scripted boss wave. */
+    const roamers = cfg.roamers || [];
+    if (roamers.length && n % 10 !== 0) {
+      for (const r of roamers) {
+        if (n >= r.from && (n - r.from) % r.every === 0) {
+          groups.push({ t: r.type, n: 1, gap: 2 });
+          break;
+        }
+      }
+    }
     return groups;
+  }
+
+  // ---------- map hazards ----------
+
+  /* Hazards are scheduled on the wave counter, not spawned as enemies: a storm
+   * or a quake is weather happening to the board, not something you can shoot.
+   * They fire at wave start and either resolve instantly (quake) or persist and
+   * move across the map for a while (storm). */
+  function dueHazards(cfg, n) {
+    return (cfg.hazards || []).filter(h => n >= h.from && (n - h.from) % h.every === 0);
   }
 
   class Game {
@@ -313,6 +336,10 @@
       this.projectiles = [];
       this.eshots = [];        // enemy fire, aimed at towers
       this.towersLost = 0;
+      this.storms = [];        // active weather sweeping the board
+      this.rubble = new Map(); // "c,r" -> waves left before the ground is usable again
+      this.quakeT = 0;
+      this.pendingHazard = 0;
       this.effects = [];
       this.particles = [];
       this.floaters = [];
@@ -389,7 +416,8 @@
 
     buildable(c, r) {
       return c >= 0 && r >= 0 && c < this.cols && r < this.rows &&
-        !this.pathCells.has(c + ',' + r) && !this.towerAt(c, r);
+        !this.pathCells.has(c + ',' + r) && !this.towerAt(c, r) &&
+        !this.rubble.has(c + ',' + r);   // torn-up ground has to settle first
     }
 
     // ---------- static terrain, painted once per resize ----------
@@ -947,10 +975,28 @@
       }
       this.spawnTimer = 0.4;
       this.waveActive = true;
+      // torn ground settles a wave at a time
+      for (const [key, left] of [...this.rubble]) {
+        if (left <= 1) this.rubble.delete(key);
+        else this.rubble.set(key, left - 1);
+      }
+
       const boss = groups.some(g => (this.cfg.enemies[g.t] || {}).boss);
+      const roam = groups.some(g => (this.cfg.enemies[g.t] || {}).roam);
       SFX.play('wave');
-      this.banner(boss ? 'BOSS WAVE' : 'WAVE ' + this.wave, boss ? 'brace yourself' : '', boss ? 'boss' : '');
-      if (boss) { this.screenFlash('rgba(255,60,60,0.28)', 700); this.addShake(this.cell * 0.3); }
+      if (roam) {
+        const r = this.cfg.enemies[groups.find(g => (this.cfg.enemies[g.t] || {}).roam).t];
+        this.banner(r.name || 'RAVAGER', 'it does not follow the path', 'boss');
+      } else {
+        this.banner(boss ? 'BOSS WAVE' : 'WAVE ' + this.wave, boss ? 'brace yourself' : '', boss ? 'boss' : '');
+      }
+      if (boss || roam) { this.screenFlash('rgba(255,60,60,0.28)', 700); this.addShake(this.cell * 0.3); }
+
+      /* Weather lands just after the banner clears. Held on the game clock
+       * rather than a setTimeout so it respects pause and speed, and so a
+       * restart cannot drop the previous run's earthquake on a fresh board. */
+      this.pendingHazard = (roam || boss) ? 1.4 : 0.9;
+
       this.updateHUD();
       this.updateWaveBtn();
     }
@@ -991,12 +1037,20 @@
 
     // ---------- combat ----------
 
+    /* Furthest-along enemy wins, except that a roamer always outranks the
+     * marching column — it is actively eating your towers, so leaving it for
+     * later is never right, and its `traveled` is meaningless as a priority. */
     findTarget(tw) {
       const rangePx = tw.range * this.cell;
-      let best = null;
+      let best = null, bestRoam = false;
       for (const en of this.enemies) {
         if (en.hp <= 0) continue;
-        if (dist(tw.x, tw.y, en.x, en.y) <= rangePx && (!best || en.traveled > best.traveled)) best = en;
+        if (dist(tw.x, tw.y, en.x, en.y) > rangePx) continue;
+        const roam = !!en.e.roam;
+        if (!best || (roam && !bestRoam) || (roam === bestRoam && en.traveled > best.traveled)) {
+          best = en;
+          bestRoam = roam;
+        }
       }
       return best;
     }
@@ -1157,6 +1211,164 @@
       this.updateBarAfford();
     }
 
+    // ---------- map hazards ----------
+
+    fireHazards() {
+      for (const h of dueHazards(this.cfg, this.wave)) {
+        if (h.kind === 'quake') this.quake(h);
+        else if (h.kind === 'storm') this.storm(h);
+        else if (h.kind === 'meteor') this.meteorShower(h);
+      }
+    }
+
+    /* An earthquake rewrites the board. It rips open cells at random, wrecking
+     * whatever is standing on them and leaving ground you cannot build on for
+     * several waves — so a bad quake can cost you a whole flank, not just a
+     * tower. Path cells are spared; collapsing the route would strand enemies. */
+    quake(h) {
+      const cells = [];
+      for (let c = 0; c < this.cols; c++) {
+        for (let r = 0; r < this.rows; r++) {
+          if (!this.pathCells.has(c + ',' + r)) cells.push([c, r]);
+        }
+      }
+      // deterministic pick so a given wave quakes the same way for everyone
+      const n = Math.min(h.cells || 6, cells.length);
+      const stride = Math.max(1, Math.floor(cells.length / n));
+      const offset = (this.wave * 17) % cells.length;
+
+      this.quakeT = h.duration || 1.6;
+      this.addShake(this.cell * 0.9);
+      this.screenFlash('rgba(180,120,60,0.3)', 700);
+      SFX.play('lose');
+      this.banner(h.name || 'EARTHQUAKE', h.sub || 'the ground splits open', 'boss');
+
+      for (let i = 0; i < n; i++) {
+        const [c, r] = cells[(offset + i * stride) % cells.length];
+        const key = c + ',' + r;
+        this.rubble.set(key, h.blockWaves || 3);
+
+        const x = (c + 0.5) * this.cell, y = (r + 0.5) * this.cell;
+        this.spawnParticles(14, {
+          x, y, color: ['#8a6a44', '#5c4630', '#c9a227'],
+          speed0: 40, speed1: 200, ttl0: 0.3, ttl1: 0.8,
+          size0: 1.5, size1: 4.5, grav: 500, shape: 'shard'
+        });
+        this.effects.push({ kind: 'ring', x, y, r: this.cell * 0.9, ttl: 0.5, max: 0.5, color: '#c9a227' });
+
+        const tw = this.towerAt(c, r);
+        if (tw && !tw.wrecked) this.hurtTower(tw, tw.maxHp * (h.damage || 0.5) + tw.shield);
+      }
+    }
+
+    /* A storm drifts across the board on its own heading, chewing on whatever
+     * it passes over and periodically throwing a bolt at one tower underneath.
+     * You cannot kill it — you either shield through it or lose the towers. */
+    storm(h) {
+      const fromLeft = (this.wave % 2) === 0;
+      this.storms.push({
+        x: fromLeft ? -this.cell * 2 : this.W + this.cell * 2,
+        y: this.H * (0.25 + ((this.wave * 7) % 50) / 100),
+        vx: (fromLeft ? 1 : -1) * (h.speed || 0.55) * this.cell,
+        vy: 0,
+        r: (h.radius || 2.6) * this.cell,
+        dps: h.dps || 7,
+        ttl: h.duration || 22,
+        boltCd: 1.2,
+        boltDmg: h.boltDamage || 26,
+        color: h.color || '#7dd3fc',
+        emoji: h.emoji || '⛈️'
+      });
+      this.screenFlash('rgba(120,180,255,0.2)', 600);
+      SFX.play('wave');
+      this.banner(h.name || 'STORM FRONT', h.sub || 'shields up', 'boss');
+    }
+
+    meteorShower(h) {
+      const count = h.count || 8;
+      for (let i = 0; i < count; i++) {
+        const c = ((this.wave * 13 + i * 7) % this.cols);
+        const r = ((this.wave * 5 + i * 11) % this.rows);
+        this.effects.push({
+          kind: 'meteor',
+          x: (c + 0.5) * this.cell, y: (r + 0.5) * this.cell,
+          delay: 0.35 * i, ttl: 0.35 * i + 0.9, max: 0.35 * i + 0.9,
+          radius: (h.radius || 1.2) * this.cell,
+          dmg: h.damage || 55,
+          color: h.color || '#ff8c42',
+          struck: false
+        });
+      }
+      this.addShake(this.cell * 0.3);
+      SFX.play('wave');
+      this.banner(h.name || 'METEOR SHOWER', h.sub || 'incoming', 'boss');
+    }
+
+    updateHazards(dt) {
+      if (this.pendingHazard > 0) {
+        this.pendingHazard -= dt;
+        if (this.pendingHazard <= 0) {
+          this.pendingHazard = 0;
+          if (!this.over) this.fireHazards();
+        }
+      }
+
+      if (this.quakeT > 0) {
+        this.quakeT -= dt;
+        if (this.quakeT > 0) this.addShake(this.cell * 0.12);
+      }
+
+      for (const s of this.storms) {
+        s.ttl -= dt;
+        s.x += s.vx * dt;
+        s.y += Math.sin(this.now * 0.6) * this.cell * 0.35 * dt;
+
+        // steady chew on everything under the cloud
+        for (const tw of this.towers) {
+          if (tw.wrecked) continue;
+          if (dist(s.x, s.y, tw.x, tw.y) <= s.r) this.hurtTower(tw, s.dps * dt);
+        }
+
+        // plus the occasional bolt on one unlucky tower
+        s.boltCd -= dt;
+        if (s.boltCd <= 0) {
+          s.boltCd = 1.4;
+          const under = this.towers.filter(tw => !tw.wrecked && dist(s.x, s.y, tw.x, tw.y) <= s.r);
+          if (under.length) {
+            const tw = under[(this.now * 7 | 0) % under.length];
+            this.hurtTower(tw, s.boltDmg);
+            this.effects.push({
+              kind: 'beam', x1: s.x, y1: s.y - this.cell, x2: tw.x, y2: tw.y,
+              ttl: 0.18, max: 0.18, color: '#ffffff'
+            });
+            this.screenFlash('rgba(255,255,255,0.18)', 200);
+            SFX.play('chain');
+          }
+        }
+      }
+      this.storms = this.storms.filter(s =>
+        s.ttl > 0 && s.x > -this.cell * 4 && s.x < this.W + this.cell * 4);
+
+      // meteors land when their delay runs out
+      for (const fx of this.effects) {
+        if (fx.kind !== 'meteor' || fx.struck) continue;
+        if (fx.max - fx.ttl < fx.delay) continue;
+        fx.struck = true;
+        this.addShake(this.cell * 0.35);
+        SFX.play('splash');
+        this.spawnParticles(20, {
+          x: fx.x, y: fx.y, color: [fx.color, '#ffffff'],
+          speed0: 60, speed1: 260, ttl0: 0.25, ttl1: 0.6, size0: 1.5, size1: 4, grav: 420
+        });
+        for (const tw of this.towers) {
+          if (!tw.wrecked && dist(fx.x, fx.y, tw.x, tw.y) <= fx.radius) this.hurtTower(tw, fx.dmg);
+        }
+        for (const en of this.enemies) {
+          if (en.hp > 0 && dist(fx.x, fx.y, en.x, en.y) <= fx.radius) this.hurt(en, fx.dmg * 2, false);
+        }
+      }
+    }
+
     // ---------- towers under fire ----------
 
     /* Damage lands on shields first. Shields recharge on their own after a lull,
@@ -1288,6 +1500,7 @@
 
     update(dt) {
       this.now = (this.now || 0) + dt;
+      this.updateHazards(dt);
 
       if (this.comboTimer > 0) {
         this.comboTimer -= dt;
@@ -1360,6 +1573,51 @@
         }
 
         const slow = this.now < en.slowUntil ? en.slowFactor : 1;
+
+        /* Roamers ignore the waypoints completely. They pick the nearest intact
+         * tower and walk straight at it, wrecking their way across the board.
+         * With nothing left to break they turn on the base, so they can never
+         * stall the wave out by having no objective. */
+        if (en.e.roam) {
+          const sp = (en.e.roamSpeed || en.e.speed) * speedScale(this.wave) * this.cell * slow * dt;
+
+          if (!en.hunt || en.hunt.wrecked || !this.towers.includes(en.hunt)) {
+            let best = null, bd = Infinity;
+            for (const tw of this.towers) {
+              if (tw.wrecked) continue;
+              const d = dist(en.x, en.y, tw.x, tw.y);
+              if (d < bd) { bd = d; best = tw; }
+            }
+            en.hunt = best;
+          }
+
+          const [gx, gy] = en.hunt
+            ? [en.hunt.x, en.hunt.y]
+            : this.wpPx[this.wpPx.length - 1];   // nothing to smash — go for the base
+
+          const d = dist(en.x, en.y, gx, gy);
+          const stop = en.hunt ? this.cell * 0.55 : this.cell * 0.3;
+          if (d > stop) {
+            en.x += (gx - en.x) / d * sp;
+            en.y += (gy - en.y) / d * sp;
+          }
+          en.traveled += sp;
+
+          // reached the base with no towers left to hunt: it breaks through
+          if (!en.hunt && d <= stop) {
+            en.hp = 0;
+            this.lives -= en.e.dmg || 3;
+            this.combo = 0; this.setCombo(0);
+            SFX.play('life');
+            this.addShake(this.cell * 0.4);
+            this.screenFlash('rgba(255,40,40,0.4)', 500);
+            this.floater(en.x, en.y - this.cell * 0.4, `-${en.e.dmg || 3} ❤️`, { color: '#ff6b6b', size: this.cell * 0.4, ttl: 1 });
+            this.updateHUD();
+            if (this.lives <= 0) { this.gameOver(false); return; }
+          }
+          continue;
+        }
+
         let move = en.e.speed * speedScale(this.wave) * this.cell * slow * dt;
         while (move > 0 && en.wp < this.wpPx.length) {
           const [tx, ty] = this.wpPx[en.wp];
@@ -1622,6 +1880,7 @@
       this.drawMarkers(t);
 
       if (this.placing) this.drawPlacementGrid(t);
+      this.drawRubble(t);
       if (this.selected) this.drawRangeRing(this.selected, t);
 
       this.drawTowers(t);
@@ -1630,6 +1889,7 @@
       this.drawEnemyShots();
       this.drawEffects();
       this.drawParticles();
+      this.drawStorms(t);
       this.drawFloaters();
       this.drawBossBar();
 
@@ -1878,6 +2138,81 @@
       }
     }
 
+    /* Torn-up cells, drawn under everything else so towers and enemies still
+     * read cleanly on top. The crack pattern is derived from the cell so it
+     * doesn't crawl between frames. */
+    drawRubble(t) {
+      const ctx = this.ctx, cell = this.cell;
+      for (const key of this.rubble.keys()) {
+        const [c, r] = key.split(',').map(Number);
+        const x = c * cell, y = r * cell;
+
+        ctx.fillStyle = 'rgba(20,12,6,0.55)';
+        ctx.fillRect(x, y, cell, cell);
+
+        ctx.strokeStyle = 'rgba(201,162,39,0.5)';
+        ctx.lineWidth = Math.max(1, cell * 0.03);
+        ctx.beginPath();
+        const seed = (c * 73 + r * 149) % 100 / 100;
+        ctx.moveTo(x + cell * (0.1 + seed * 0.2), y);
+        ctx.lineTo(x + cell * (0.45 + seed * 0.1), y + cell * 0.42);
+        ctx.lineTo(x + cell * (0.2 + seed * 0.2), y + cell * 0.66);
+        ctx.lineTo(x + cell * (0.6 + seed * 0.2), y + cell);
+        ctx.moveTo(x + cell, y + cell * (0.25 + seed * 0.3));
+        ctx.lineTo(x + cell * (0.55 + seed * 0.1), y + cell * 0.5);
+        ctx.stroke();
+
+        // faint pulse so you can tell it is temporary, not terrain
+        const a = 0.05 + Math.sin(t * 2 + c + r) * 0.03;
+        ctx.fillStyle = rgba('#c9a227', a);
+        ctx.fillRect(x, y, cell, cell);
+      }
+    }
+
+    drawStorms(t) {
+      const ctx = this.ctx, cell = this.cell;
+      for (const s of this.storms) {
+        const fade = clamp(s.ttl / 3, 0, 1);
+
+        const g = ctx.createRadialGradient(s.x, s.y, s.r * 0.15, s.x, s.y, s.r);
+        g.addColorStop(0, rgba(s.color, 0.3 * fade));
+        g.addColorStop(0.6, rgba('#1e293b', 0.42 * fade));
+        g.addColorStop(1, rgba('#1e293b', 0));
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+        ctx.fill();
+
+        // churning edge
+        ctx.strokeStyle = rgba(s.color, (0.2 + Math.sin(t * 3) * 0.1) * fade);
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.r * (0.86 + Math.sin(t * 2.2) * 0.04), 0, Math.PI * 2);
+        ctx.stroke();
+
+        ctx.font = `${cell * 0.9}px ${EMOJI_FONT}`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.globalAlpha = fade;
+        ctx.fillText(s.emoji, s.x, s.y - s.r * 0.45);
+        ctx.globalAlpha = 1;
+
+        // rain streaks
+        ctx.strokeStyle = rgba(s.color, 0.22 * fade);
+        ctx.lineWidth = 1;
+        for (let i = 0; i < 14; i++) {
+          const a = (i / 14) * Math.PI * 2 + t * 0.4;
+          const rr = s.r * (0.25 + ((i * 37) % 60) / 100);
+          const px = s.x + Math.cos(a) * rr;
+          const py = s.y + Math.sin(a) * rr * 0.6 + ((t * 90 + i * 33) % (cell * 1.6));
+          ctx.beginPath();
+          ctx.moveTo(px, py);
+          ctx.lineTo(px - cell * 0.06, py + cell * 0.28);
+          ctx.stroke();
+        }
+      }
+    }
+
     drawEnemyShots() {
       const ctx = this.ctx, cell = this.cell;
       for (const s of this.eshots) {
@@ -2048,6 +2383,34 @@
       const ctx = this.ctx;
       for (const fx of this.effects) {
         const k = clamp(fx.ttl / (fx.max || 0.3), 0, 1);
+        if (fx.kind === 'meteor') {
+          // telegraph first, so a meteor is dodgeable by selling or shielding
+          const elapsed = fx.max - fx.ttl;
+          if (elapsed < fx.delay) {
+            const warn = clamp(elapsed / fx.delay, 0, 1);
+            ctx.globalAlpha = 0.3 + warn * 0.5;
+            ctx.strokeStyle = fx.color;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(fx.x, fx.y, fx.radius * (1.4 - warn * 0.4), 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(fx.x, fx.y, fx.radius * warn, 0, Math.PI * 2);
+            ctx.stroke();
+          } else {
+            const burn = clamp(fx.ttl / Math.max(0.01, fx.max - fx.delay), 0, 1);
+            const g = ctx.createRadialGradient(fx.x, fx.y, 0, fx.x, fx.y, fx.radius);
+            g.addColorStop(0, rgba('#ffffff', burn));
+            g.addColorStop(0.5, rgba(fx.color, burn * 0.7));
+            g.addColorStop(1, rgba(fx.color, 0));
+            ctx.fillStyle = g;
+            ctx.beginPath();
+            ctx.arc(fx.x, fx.y, fx.radius, 0, Math.PI * 2);
+            ctx.fill();
+          }
+          ctx.globalAlpha = 1;
+          continue;
+        }
         if (fx.kind === 'beam') {
           const flicker = 0.75 + Math.random() * 0.25;
           ctx.globalAlpha = k * flicker;

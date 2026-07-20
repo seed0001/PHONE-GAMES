@@ -76,14 +76,26 @@ TD.start({
                  shield: 3000, shieldColor: '#ddd6fe', healRate: 0.06, healRange: 3, atk: { dmg: 26, rate: 0.6, range: 3.4, color: '#c4b5fd' } },
     worldship: { emoji: '🛸', hp: 15000, speed: 0.62, reward: 560, size: 1.0, dmg: 8, color: '#78716c', armor: 45, boss: true, name: 'WORLDSHIP',
                  atk: { dmg: 46, rate: 0.35, range: 2.2, type: 'melee', color: '#a8a29e' } },
-    swarmking: { emoji: '🦂', hp: 24000, speed: 0.9, reward: 720, size: 0.96, dmg: 9, color: '#ef4444', boss: true, name: 'SWARM KING',
-                 shield: 8000, shieldColor: '#fecaca', regen: 0.02, atk: { dmg: 55, rate: 0.65, range: 3.6, color: '#f87171' } },
-    colossus:  { emoji: '🗿', hp: 42000, speed: 0.55, reward: 900, size: 1.05, dmg: 12, color: '#64748b', armor: 70, boss: true, name: 'VOID COLOSSUS',
+    swarmking: { emoji: '🦂', hp: 20000, speed: 0.9, reward: 720, size: 0.96, dmg: 9, color: '#ef4444', boss: true, name: 'SWARM KING',
+                 shield: 6000, shieldColor: '#fecaca', regen: 0.02, atk: { dmg: 55, rate: 0.65, range: 3.6, color: '#f87171' } },
+    colossus:  { emoji: '🗿', hp: 32000, speed: 0.55, reward: 900, size: 1.05, dmg: 12, color: '#64748b', armor: 70, boss: true, name: 'VOID COLOSSUS',
                  regen: 0.02, atk: { dmg: 70, rate: 0.4, range: 2.6, type: 'melee', color: '#94a3b8' } },
-    eventHorizon:{ emoji: '🕳️', hp: 70000, speed: 0.95, reward: 1200, size: 1.0, dmg: 15, color: '#6366f1', boss: true, name: 'EVENT HORIZON',
-                 shield: 25000, shieldColor: '#c7d2fe', armor: 55, atk: { dmg: 90, rate: 0.7, range: 4.0, color: '#818cf8' } },
-    heatDeath: { emoji: '🌟', hp: 120000, speed: 0.75, reward: 1800, size: 1.1, dmg: 20, color: '#fbbf24', boss: true, name: 'HEAT DEATH',
-                 shield: 50000, shieldColor: '#fde68a', armor: 90, regen: 0.015, atk: { dmg: 130, rate: 0.8, range: 4.4, color: '#f59e0b' } }
+    eventHorizon:{ emoji: '🕳️', hp: 48000, speed: 0.95, reward: 1200, size: 1.0, dmg: 15, color: '#6366f1', boss: true, name: 'EVENT HORIZON',
+                 shield: 16000, shieldColor: '#c7d2fe', armor: 55, atk: { dmg: 90, rate: 0.7, range: 4.0, color: '#818cf8' } },
+    heatDeath: { emoji: '🌟', hp: 75000, speed: 0.75, reward: 1800, size: 1.1, dmg: 20, color: '#fbbf24', boss: true, name: 'HEAT DEATH',
+                 shield: 30000, shieldColor: '#fde68a', armor: 90, regen: 0.015, atk: { dmg: 130, rate: 0.8, range: 4.4, color: '#f59e0b' } },
+
+    /* ---- roamers ----
+     * Boarders. They do not run the approach lane — they cut straight to your
+     * nearest live gun, wreck it, and move on. Lighter than a lane boss because
+     * they pick the engagement. */
+    breachpod: { emoji: '🛰️', hp: 9000, speed: 1.1, roam: true, roamSpeed: 1.3, reward: 500, size: 0.86,
+                 dmg: 4, color: '#f43f5e', armor: 20, boss: true, name: 'BOARDING POD',
+                 atk: { dmg: 46, rate: 0.7, range: 1.5, type: 'melee', color: '#fb7185' } },
+    voidwalker:{ emoji: '🌌', hp: 34000, speed: 1.0, roam: true, roamSpeed: 1.1, reward: 1400, size: 0.98,
+                 dmg: 8, color: '#b388ff', armor: 40, boss: true, name: 'VOIDWALKER',
+                 shield: 10000, shieldColor: '#ddd6fe', regen: 0.02,
+                 atk: { dmg: 85, rate: 0.6, range: 2.6, color: '#c4b5fd' } }
   },
 
   enemyTiers: [
@@ -104,5 +116,22 @@ TD.start({
     { at: 170, types: ['leviathan'] }
   ],
 
-  bosses: ['harbinger', 'devourer', 'oracle', 'worldship', 'swarmking', 'colossus', 'eventHorizon', 'heatDeath']
+  bosses: ['harbinger', 'devourer', 'oracle', 'worldship', 'swarmking', 'colossus', 'eventHorizon', 'heatDeath'],
+
+  roamers: [
+    { type: 'breachpod', from: 35, every: 24 },
+    { type: 'voidwalker', from: 92, every: 31 }
+  ],
+
+  /* Station weather. Ion storms roll through the bastion cooking exposed guns;
+   * a hull breach vents whole sections and leaves them unusable while pressure
+   * comes back. */
+  hazards: [
+    { kind: 'storm', from: 28, every: 17, name: 'ION STORM', sub: 'raise deflectors',
+      dps: 7, boltDamage: 26, radius: 2.6, duration: 22, speed: 0.55, color: '#4dd0e1', emoji: '🌀' },
+    { kind: 'quake', from: 44, every: 26, name: 'HULL BREACH', sub: 'sections venting',
+      cells: 6, damage: 0.5, blockWaves: 3, duration: 1.6 },
+    { kind: 'meteor', from: 74, every: 23, name: 'ASTEROID SHOWER', sub: 'brace for impact',
+      count: 9, damage: 60, radius: 1.2, color: '#ff9f1c' }
+  ]
 });

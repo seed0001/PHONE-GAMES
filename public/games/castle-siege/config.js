@@ -82,14 +82,27 @@ TD.start({
                  shield: 3000, shieldColor: '#ddd6fe', healRate: 0.06, healRange: 3, atk: { dmg: 26, rate: 0.6, range: 3.4, color: '#c4b5fd' } },
     behemoth:  { emoji: '🦣', hp: 15000, speed: 0.62, reward: 560, size: 1.0, dmg: 8, color: '#92400e', armor: 45, boss: true, name: 'BEHEMOTH',
                  atk: { dmg: 46, rate: 0.35, range: 2.2, type: 'melee', color: '#d97706' } },
-    demon:     { emoji: '😈', hp: 24000, speed: 0.9, reward: 720, size: 0.96, dmg: 9, color: '#dc2626', boss: true, name: 'PIT DEMON',
-                 shield: 8000, shieldColor: '#fecaca', regen: 0.02, atk: { dmg: 55, rate: 0.65, range: 3.6, color: '#ef4444' } },
-    titan:     { emoji: '🗿', hp: 42000, speed: 0.55, reward: 900, size: 1.05, dmg: 12, color: '#64748b', armor: 70, boss: true, name: 'STONE TITAN',
+    demon:     { emoji: '😈', hp: 20000, speed: 0.9, reward: 720, size: 0.96, dmg: 9, color: '#dc2626', boss: true, name: 'PIT DEMON',
+                 shield: 6000, shieldColor: '#fecaca', regen: 0.02, atk: { dmg: 55, rate: 0.65, range: 3.6, color: '#ef4444' } },
+    titan:     { emoji: '🗿', hp: 32000, speed: 0.55, reward: 900, size: 1.05, dmg: 12, color: '#64748b', armor: 70, boss: true, name: 'STONE TITAN',
                  regen: 0.02, atk: { dmg: 70, rate: 0.4, range: 2.6, type: 'melee', color: '#94a3b8' } },
-    archfiend: { emoji: '👿', hp: 70000, speed: 0.95, reward: 1200, size: 1.0, dmg: 15, color: '#7f1d1d', boss: true, name: 'ARCHFIEND',
-                 shield: 25000, shieldColor: '#fca5a5', armor: 55, atk: { dmg: 90, rate: 0.7, range: 4.0, color: '#dc2626' } },
-    worldEnd:  { emoji: '☄️', hp: 120000, speed: 0.75, reward: 1800, size: 1.1, dmg: 20, color: '#fbbf24', boss: true, name: 'THE ENDING',
-                 shield: 50000, shieldColor: '#fde68a', armor: 90, regen: 0.015, atk: { dmg: 130, rate: 0.8, range: 4.4, color: '#f59e0b' } }
+    archfiend: { emoji: '👿', hp: 48000, speed: 0.95, reward: 1200, size: 1.0, dmg: 15, color: '#7f1d1d', boss: true, name: 'ARCHFIEND',
+                 shield: 16000, shieldColor: '#fca5a5', armor: 55, atk: { dmg: 90, rate: 0.7, range: 4.0, color: '#dc2626' } },
+    worldEnd:  { emoji: '☄️', hp: 75000, speed: 0.75, reward: 1800, size: 1.1, dmg: 20, color: '#fbbf24', boss: true, name: 'THE ENDING',
+                 shield: 30000, shieldColor: '#fde68a', armor: 90, regen: 0.015, atk: { dmg: 130, rate: 0.8, range: 4.4, color: '#f59e0b' } },
+
+    /* ---- roamers ----
+     * These ignore the path completely: they walk straight at your nearest
+     * intact tower, smash it, pick the next one, and only turn on the base once
+     * there is nothing left standing. Lower health than a lane boss, because
+     * they arrive wherever they like rather than where your guns are pointed. */
+    warbeast:  { emoji: '🦏', hp: 9000, speed: 1.1, roam: true, roamSpeed: 1.25, reward: 500, size: 0.88,
+                 dmg: 4, color: '#b45309', armor: 20, boss: true, name: 'SIEGE BEAST',
+                 atk: { dmg: 46, rate: 0.7, range: 1.5, type: 'melee', color: '#f59e0b' } },
+    wyrm:      { emoji: '🐲', hp: 34000, speed: 1.0, roam: true, roamSpeed: 1.05, reward: 1400, size: 1.0,
+                 dmg: 8, color: '#16a34a', armor: 40, boss: true, name: 'THE GREAT WYRM',
+                 shield: 10000, shieldColor: '#bbf7d0', regen: 0.02,
+                 atk: { dmg: 85, rate: 0.6, range: 2.6, color: '#4ade80' } }
   },
 
   /* What can show up, and from when. The engine leans on the two newest
@@ -112,5 +125,23 @@ TD.start({
     { at: 170, types: ['abomination'] }
   ],
 
-  bosses: ['ogreKing', 'dragon', 'lich', 'behemoth', 'demon', 'titan', 'archfiend', 'worldEnd']
+  bosses: ['ogreKing', 'dragon', 'lich', 'behemoth', 'demon', 'titan', 'archfiend', 'worldEnd'],
+
+  // Pathless hunters. Scheduled off the boss cadence so they never double up.
+  roamers: [
+    { type: 'warbeast', from: 35, every: 24 },
+    { type: 'wyrm', from: 92, every: 31 }
+  ],
+
+  /* Weather happens to the board — you cannot shoot it, only build for it.
+   * Storms drift across chewing on whatever they cover; quakes tear open cells
+   * and leave ground you cannot build on for a few waves. */
+  hazards: [
+    { kind: 'storm', from: 28, every: 17, name: 'THUNDERSTORM', sub: 'shields up',
+      dps: 7, boltDamage: 26, radius: 2.6, duration: 22, speed: 0.55, color: '#7dd3fc', emoji: '⛈️' },
+    { kind: 'quake', from: 44, every: 26, name: 'EARTHQUAKE', sub: 'the ground splits open',
+      cells: 6, damage: 0.5, blockWaves: 3, duration: 1.6 },
+    { kind: 'meteor', from: 74, every: 23, name: 'FIRE FROM THE SKY', sub: 'get clear',
+      count: 9, damage: 60, radius: 1.2, color: '#ff8c42' }
+  ]
 });

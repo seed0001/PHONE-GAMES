@@ -76,14 +76,26 @@ TD.start({
                  shield: 3000, shieldColor: '#ddd6fe', healRate: 0.06, healRange: 3, atk: { dmg: 26, rate: 0.6, range: 3.4, color: '#c4b5fd' } },
     ossuary:   { emoji: '🏛️', hp: 15000, speed: 0.62, reward: 560, size: 1.0, dmg: 8, color: '#a8a29e', armor: 45, boss: true, name: 'WALKING OSSUARY',
                  atk: { dmg: 46, rate: 0.35, range: 2.2, type: 'melee', color: '#d6d3d1' } },
-    revenant:  { emoji: '😈', hp: 24000, speed: 0.9, reward: 720, size: 0.96, dmg: 9, color: '#dc2626', boss: true, name: 'CRIMSON REVENANT',
-                 shield: 8000, shieldColor: '#fecaca', regen: 0.02, atk: { dmg: 55, rate: 0.65, range: 3.6, color: '#ef4444' } },
-    colossus:  { emoji: '🗿', hp: 42000, speed: 0.55, reward: 900, size: 1.05, dmg: 12, color: '#64748b', armor: 70, boss: true, name: 'TOMB COLOSSUS',
+    revenant:  { emoji: '😈', hp: 20000, speed: 0.9, reward: 720, size: 0.96, dmg: 9, color: '#dc2626', boss: true, name: 'CRIMSON REVENANT',
+                 shield: 6000, shieldColor: '#fecaca', regen: 0.02, atk: { dmg: 55, rate: 0.65, range: 3.6, color: '#ef4444' } },
+    colossus:  { emoji: '🗿', hp: 32000, speed: 0.55, reward: 900, size: 1.05, dmg: 12, color: '#64748b', armor: 70, boss: true, name: 'TOMB COLOSSUS',
                  regen: 0.02, atk: { dmg: 70, rate: 0.4, range: 2.6, type: 'melee', color: '#94a3b8' } },
-    reaper:    { emoji: '☠️', hp: 70000, speed: 0.95, reward: 1200, size: 1.0, dmg: 15, color: '#334155', boss: true, name: 'THE REAPER',
-                 shield: 25000, shieldColor: '#cbd5e1', armor: 55, atk: { dmg: 90, rate: 0.7, range: 4.0, color: '#64748b' } },
-    finalNight:{ emoji: '🌑', hp: 120000, speed: 0.75, reward: 1800, size: 1.1, dmg: 20, color: '#7b5cff', boss: true, name: 'THE LAST NIGHT',
-                 shield: 50000, shieldColor: '#ddd6fe', armor: 90, regen: 0.015, atk: { dmg: 130, rate: 0.8, range: 4.4, color: '#a78bfa' } }
+    reaper:    { emoji: '☠️', hp: 48000, speed: 0.95, reward: 1200, size: 1.0, dmg: 15, color: '#334155', boss: true, name: 'THE REAPER',
+                 shield: 16000, shieldColor: '#cbd5e1', armor: 55, atk: { dmg: 90, rate: 0.7, range: 4.0, color: '#64748b' } },
+    finalNight:{ emoji: '🌑', hp: 75000, speed: 0.75, reward: 1800, size: 1.1, dmg: 20, color: '#7b5cff', boss: true, name: 'THE LAST NIGHT',
+                 shield: 30000, shieldColor: '#ddd6fe', armor: 90, regen: 0.015, atk: { dmg: 130, rate: 0.8, range: 4.4, color: '#a78bfa' } },
+
+    /* ---- roamers ----
+     * These do not shamble along the path. They go for the nearest standing
+     * shrine, pull it down, and move to the next. Lighter than a lane boss
+     * because they choose where you have to fight them. */
+    grinder:   { emoji: '🐗', hp: 9000, speed: 1.1, roam: true, roamSpeed: 1.28, reward: 500, size: 0.86,
+                 dmg: 4, color: '#a16207', armor: 20, boss: true, name: 'BONE GRINDER',
+                 atk: { dmg: 46, rate: 0.7, range: 1.5, type: 'melee', color: '#ca8a04' } },
+    dreadwraith:{ emoji: '👻', hp: 34000, speed: 1.0, roam: true, roamSpeed: 1.12, reward: 1400, size: 0.98,
+                 dmg: 8, color: '#e2e8f0', armor: 40, boss: true, name: 'THE DREAD WRAITH',
+                 shield: 10000, shieldColor: '#f1f5f9', regen: 0.02,
+                 atk: { dmg: 85, rate: 0.6, range: 2.6, color: '#cbd5e1' } }
   },
 
   enemyTiers: [
@@ -104,5 +116,22 @@ TD.start({
     { at: 170, types: ['charnel'] }
   ],
 
-  bosses: ['gravelord', 'wight', 'lich', 'ossuary', 'revenant', 'colossus', 'reaper', 'finalNight']
+  bosses: ['gravelord', 'wight', 'lich', 'ossuary', 'revenant', 'colossus', 'reaper', 'finalNight'],
+
+  roamers: [
+    { type: 'grinder', from: 35, every: 24 },
+    { type: 'dreadwraith', from: 92, every: 31 }
+  ],
+
+  /* The graveyard turns on you. A cursed squall rots whatever it drifts over;
+   * a collapse caves in plots and leaves broken ground you cannot consecrate
+   * until it settles. */
+  hazards: [
+    { kind: 'storm', from: 28, every: 17, name: 'CURSED SQUALL', sub: 'ward what you can',
+      dps: 7, boltDamage: 26, radius: 2.6, duration: 22, speed: 0.55, color: '#b9a8d6', emoji: '🌫️' },
+    { kind: 'quake', from: 44, every: 26, name: 'THE GROUND OPENS', sub: 'plots caving in',
+      cells: 6, damage: 0.5, blockWaves: 3, duration: 1.6 },
+    { kind: 'meteor', from: 74, every: 23, name: 'BONE RAIN', sub: 'take cover',
+      count: 9, damage: 60, radius: 1.2, color: '#e7e5e4' }
+  ]
 });

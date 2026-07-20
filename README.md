@@ -43,6 +43,32 @@ Difficulty is a polynomial with a per-act kicker (`hpScale` in the engine),
 reaching ~157x health at wave 200. The old curve was `1.13^wave`, which is
 fine for 20 waves and asks for 4x10^10 health at 200.
 
+#### Roamers
+
+Listed under `roamers`, these bosses have `roam: true` and **ignore the path
+entirely**. A roamer walks straight at your nearest intact tower, wrecks it,
+picks the next one, and only turns on the base once nothing is left standing —
+so it can never stall a wave by having no objective. Towers always target a
+roamer over the marching column, since leaving one alive costs you buildings.
+
+They carry less health than a lane boss of the same era on purpose: they pick
+where the fight happens, so your guns are rarely all pointing the right way.
+
+#### Hazards
+
+Listed under `hazards`, these are weather, not enemies — you cannot shoot them,
+only build for them. Scheduled on the wave counter (`from` / `every`) and held
+on the game clock, so pausing pauses them.
+
+| Kind | What it does |
+|------|--------------|
+| `storm` | Drifts across the board damaging every tower it covers, throwing a heavy bolt at one of them every second or so. Shields are the answer. |
+| `quake` | Rips open cells at random, wrecking what stands on them and leaving ground you **cannot build on** for `blockWaves` waves. Path cells are spared — collapsing the route would strand enemies. |
+| `meteor` | Telegraphs impact rings, then lands. Hits towers and enemies both, so it can save you as easily as ruin you. |
+
+A quake permanently changes the shape of a run: lose a flank at wave 96 and you
+are rebuilding somewhere else, not where you planned.
+
 ### 🏃 Endless Runner — [`engine/runner-engine.js`](public/games/engine/runner-engine.js)
 
 | Game | Theme |

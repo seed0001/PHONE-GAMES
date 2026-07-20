@@ -77,14 +77,26 @@ TD.start({
                  shield: 3000, shieldColor: '#ddd6fe', healRate: 0.06, healRange: 3, atk: { dmg: 26, rate: 0.6, range: 3.4, color: '#c4b5fd' } },
     bulwarkAI: { emoji: '🏗️', hp: 15000, speed: 0.62, reward: 560, size: 1.0, dmg: 8, color: '#78716c', armor: 45, boss: true, name: 'SIEGE FRAME',
                  atk: { dmg: 46, rate: 0.35, range: 2.2, type: 'melee', color: '#a8a29e' } },
-    daemon:    { emoji: '😈', hp: 24000, speed: 0.9, reward: 720, size: 0.96, dmg: 9, color: '#ef4444', boss: true, name: 'ROOT DAEMON',
-                 shield: 8000, shieldColor: '#fecaca', regen: 0.02, atk: { dmg: 55, rate: 0.65, range: 3.6, color: '#f87171' } },
-    monolith:  { emoji: '🗄️', hp: 42000, speed: 0.55, reward: 900, size: 1.05, dmg: 12, color: '#0ea5e9', armor: 70, boss: true, name: 'THE MONOLITH',
+    daemon:    { emoji: '😈', hp: 20000, speed: 0.9, reward: 720, size: 0.96, dmg: 9, color: '#ef4444', boss: true, name: 'ROOT DAEMON',
+                 shield: 6000, shieldColor: '#fecaca', regen: 0.02, atk: { dmg: 55, rate: 0.65, range: 3.6, color: '#f87171' } },
+    monolith:  { emoji: '🗄️', hp: 32000, speed: 0.55, reward: 900, size: 1.05, dmg: 12, color: '#0ea5e9', armor: 70, boss: true, name: 'THE MONOLITH',
                  regen: 0.02, atk: { dmg: 70, rate: 0.4, range: 2.6, type: 'melee', color: '#38bdf8' } },
-    singularity:{ emoji: '🕳️', hp: 70000, speed: 0.95, reward: 1200, size: 1.0, dmg: 15, color: '#6366f1', boss: true, name: 'SINGULARITY',
-                 shield: 25000, shieldColor: '#c7d2fe', armor: 55, atk: { dmg: 90, rate: 0.7, range: 4.0, color: '#818cf8' } },
-    zeroDay:   { emoji: '☠️', hp: 120000, speed: 0.75, reward: 1800, size: 1.1, dmg: 20, color: '#ff2d95', boss: true, name: 'ZERO DAY',
-                 shield: 50000, shieldColor: '#fbcfe8', armor: 90, regen: 0.015, atk: { dmg: 130, rate: 0.8, range: 4.4, color: '#f472b6' } }
+    singularity:{ emoji: '🕳️', hp: 48000, speed: 0.95, reward: 1200, size: 1.0, dmg: 15, color: '#6366f1', boss: true, name: 'SINGULARITY',
+                 shield: 16000, shieldColor: '#c7d2fe', armor: 55, atk: { dmg: 90, rate: 0.7, range: 4.0, color: '#818cf8' } },
+    zeroDay:   { emoji: '☠️', hp: 75000, speed: 0.75, reward: 1800, size: 1.1, dmg: 20, color: '#ff2d95', boss: true, name: 'ZERO DAY',
+                 shield: 30000, shieldColor: '#fbcfe8', armor: 90, regen: 0.015, atk: { dmg: 130, rate: 0.8, range: 4.4, color: '#f472b6' } },
+
+    /* ---- roamers ----
+     * Off-network units. They ignore the route entirely, walk straight at your
+     * nearest live emplacement, tear it down, and move to the next. Lighter
+     * than a lane boss because they choose where the fight happens. */
+    ripper:    { emoji: '🦿', hp: 9000, speed: 1.1, roam: true, roamSpeed: 1.3, reward: 500, size: 0.86,
+                 dmg: 4, color: '#f43f5e', armor: 20, boss: true, name: 'RIPPER UNIT',
+                 atk: { dmg: 46, rate: 0.7, range: 1.5, type: 'melee', color: '#fb7185' } },
+    hunterAI:  { emoji: '🛸', hp: 34000, speed: 1.0, roam: true, roamSpeed: 1.1, reward: 1400, size: 0.98,
+                 dmg: 8, color: '#22d3ee', armor: 40, boss: true, name: 'HUNTER-KILLER',
+                 shield: 10000, shieldColor: '#a5f3fc', regen: 0.02,
+                 atk: { dmg: 85, rate: 0.6, range: 2.6, color: '#67e8f9' } }
   },
 
   enemyTiers: [
@@ -105,5 +117,22 @@ TD.start({
     { at: 170, types: ['titanhull'] }
   ],
 
-  bosses: ['foreman', 'hydra', 'architect', 'bulwarkAI', 'daemon', 'monolith', 'singularity', 'zeroDay']
+  bosses: ['foreman', 'hydra', 'architect', 'bulwarkAI', 'daemon', 'monolith', 'singularity', 'zeroDay'],
+
+  roamers: [
+    { type: 'ripper', from: 35, every: 24 },
+    { type: 'hunterAI', from: 92, every: 31 }
+  ],
+
+  /* Grid weather. An EMP surge rolls across frying emplacements under it; a
+   * grid collapse blows out cells and leaves them unbuildable while the
+   * substrate reboots. */
+  hazards: [
+    { kind: 'storm', from: 28, every: 17, name: 'EMP SURGE', sub: 'harden the grid',
+      dps: 7, boltDamage: 26, radius: 2.6, duration: 22, speed: 0.55, color: '#00e5ff', emoji: '🌩️' },
+    { kind: 'quake', from: 44, every: 26, name: 'GRID COLLAPSE', sub: 'sectors going dark',
+      cells: 6, damage: 0.5, blockWaves: 3, duration: 1.6 },
+    { kind: 'meteor', from: 74, every: 23, name: 'ORBITAL STRIKE', sub: 'clear the pads',
+      count: 9, damage: 60, radius: 1.2, color: '#ff2d95' }
+  ]
 });
