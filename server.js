@@ -96,12 +96,8 @@ app.get('/api/me', (req, res) => {
 
 // ---------- scores API ----------
 
-// Game ids grouped by hub category (mirrors CATEGORIES in public/index.html).
-const CATEGORY_GAMES = {
-  'tower-defense': ['castle-siege', 'neon-breach', 'void-bastion', 'grave-shift'],
-  'endless-runner': ['neon-sprint', 'temple-dash', 'deep-current', 'rooftop-run']
-};
-const GAME_IDS = new Set(Object.values(CATEGORY_GAMES).flat());
+const CATEGORIES = require('./public/js/catalog.js');
+const GAME_IDS = new Set(CATEGORIES.flatMap(c => c.games.map(g => g.id)));
 
 app.post('/api/scores', requireAuth, (req, res) => {
   const { game, score, wave } = req.body || {};
@@ -137,6 +133,72 @@ app.get('/api/me/scores', requireAuth, (req, res) => {
   res.json(byGame);
 });
 
+// ---------- stats ----------
+
+/* Cross-game ranking can't just sum raw scores: a tower defense score and a
+ * runner's metre count are different units, so summing them would make one
+ * category worth more than the other by accident. Instead each game a player
+ * has played awards points by placement within that game, floored at 10 so
+ * showing up always counts for something. Overall = sum of those points, which
+ * rewards both placing well and playing broadly. */
+const MIN_POINTS = 10;
+function placementPoints(rank, players) {
+  return Math.max(MIN_POINTS, Math.round(100 * (1 - (rank - 1) / players)));
+}
+
+app.get('/api/stats', requireAuth, (req, res) => {
+  const rows = db.prepare(`
+    SELECT u.id AS user_id, u.username, s.game, s.score, s.wave, s.updated_at,
+           RANK() OVER (PARTITION BY s.game ORDER BY s.score DESC) AS rank,
+           COUNT(*) OVER (PARTITION BY s.game) AS players
+    FROM scores s
+    JOIN users u ON u.id = s.user_id
+  `).all().filter(r => GAME_IDS.has(r.game));
+
+  const games = {};
+  const players = new Map();
+
+  for (const r of rows) {
+    const entry = {
+      username: r.username, score: r.score, wave: r.wave,
+      rank: r.rank, players: r.players, updatedAt: r.updated_at,
+      points: placementPoints(r.rank, r.players),
+      isMe: r.user_id === req.user.id
+    };
+
+    const g = games[r.game] || (games[r.game] = { players: r.players, top: [], me: null });
+    if (entry.rank <= 10) g.top.push(entry);
+    if (entry.isMe) g.me = entry;
+
+    let p = players.get(r.user_id);
+    if (!p) {
+      p = { username: r.username, points: 0, played: 0, totalScore: 0, golds: 0, silvers: 0, bronzes: 0, isMe: entry.isMe };
+      players.set(r.user_id, p);
+    }
+    p.points += entry.points;
+    p.played += 1;
+    p.totalScore += r.score;
+    if (r.rank === 1) p.golds++;
+    else if (r.rank === 2) p.silvers++;
+    else if (r.rank === 3) p.bronzes++;
+  }
+
+  for (const g of Object.values(games)) g.top.sort((a, b) => a.rank - b.rank);
+
+  const overall = [...players.values()].sort((a, b) =>
+    b.points - a.points || b.played - a.played || b.totalScore - a.totalScore
+  );
+  overall.forEach((p, i) => { p.rank = i + 1; });
+
+  res.json({
+    username: req.user.username,
+    totalGames: GAME_IDS.size,
+    overall,
+    me: overall.find(p => p.isMe) || null,
+    games
+  });
+});
+
 // ---------- pages ----------
 
 const PUB = path.join(__dirname, 'public');
@@ -147,12 +209,15 @@ app.get('/login', (req, res) => {
 });
 
 // Everything behind the hub and the games requires an account.
+const GATED = ['/', '/index.html', '/stats', '/stats.html'];
 app.use((req, res, next) => {
-  if (req.path === '/' || req.path === '/index.html' || req.path.startsWith('/games/')) {
+  if (GATED.includes(req.path) || req.path.startsWith('/games/')) {
     if (!getUser(req)) return res.redirect('/login');
   }
   next();
 });
+
+app.get('/stats', (req, res) => res.sendFile(path.join(PUB, 'stats.html')));
 
 app.use(express.static(PUB));
 

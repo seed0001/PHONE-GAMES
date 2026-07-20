@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Stats — Pocket Arcade</title>
+<link rel="stylesheet" href="/css/site.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>">
+</head>
+<body>
+<div class="wrap">
+  <header class="site-header">
+    <a class="logo" href="/">🕹️ Pocket <span>Arcade</span></a>
+    <div class="user-chip">
+      <a class="nav-link" href="/">🕹️ Games</a>
+      <button class="btn ghost" id="logout">Log out</button>
+    </div>
+  </header>
+
+  <div id="me-summary"></div>
+  <div class="tabs-scroll" id="tabs"></div>
+  <div id="panel"><div class="loading">Loading stats…</div></div>
+
+  <footer>Pocket Arcade — tiny games, big fun</footer>
+</div>
+
+<script src="/js/catalog.js"></script>
+<script>
+const GAMES = {};
+const ORDERED = [];
+for (const cat of CATEGORIES) {
+  for (const g of cat.games) {
+    GAMES[g.id] = Object.assign({}, g, { category: cat });
+    ORDERED.push(g.id);
+  }
+}
+
+const medalFor = pos => ['🥇', '🥈', '🥉'][pos - 1] || pos + '.';
+const esc = s => String(s).replace(/[&<>"']/g, c =>
+  ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+
+let DATA = null;
+let active = 'overall';
+
+// ---------- rendering ----------
+
+function meSummary(d) {
+  const me = d.me;
+  const el = document.getElementById('me-summary');
+  if (!me) {
+    el.innerHTML = `
+      <div class="me-card">
+        <div class="me-top"><span class="me-name">${esc(d.username)}</span></div>
+        <div class="ov-sub" style="color:var(--muted);font-size:14px">
+          You haven't set a score yet — play any game and you'll show up here.
+        </div>
+      </div>`;
+    return;
+  }
+  el.innerHTML = `
+    <div class="me-card">
+      <div class="me-top">
+        <span class="me-name">${esc(d.username)}</span>
+        <span class="me-rank">Overall #${me.rank} of ${d.overall.length}</span>
+      </div>
+      <div class="tiles">
+        <div class="tile"><div class="n">${me.points.toLocaleString()}</div><div class="l">Points</div></div>
+        <div class="tile"><div class="n">${me.played}<span style="font-size:13px;color:var(--muted)">/${d.totalGames}</span></div><div class="l">Played</div></div>
+        <div class="tile"><div class="n">🥇 ${me.golds}</div><div class="l">Gold</div></div>
+        <div class="tile"><div class="n">🥈 ${me.silvers}</div><div class="l">Silver</div></div>
+        <div class="tile"><div class="n">🥉 ${me.bronzes}</div><div class="l">Bronze</div></div>
+      </div>
+    </div>`;
+}
+
+function tabs() {
+  const el = document.getElementById('tabs');
+  const btns = [`<button class="tab-btn" data-tab="overall">🏆 Overall</button>`];
+  for (const id of ORDERED) {
+    btns.push(`<button class="tab-btn" data-tab="${id}">${GAMES[id].emoji} ${esc(GAMES[id].name)}</button>`);
+  }
+  el.innerHTML = btns.join('');
+  el.querySelectorAll('.tab-btn').forEach(b => {
+    b.onclick = () => { active = b.dataset.tab; paint(); };
+  });
+}
+
+function overallBoard(d) {
+  const rows = d.overall.length
+    ? d.overall.map(p => `
+        <div class="row ${p.isMe ? 'me' : ''}">
+          <span class="pos">${medalFor(p.rank)}</span>
+          <span class="who">${esc(p.username)}${p.isMe ? '<span class="tagme">YOU</span>' : ''}</span>
+          <span class="extra">${p.played} game${p.played === 1 ? '' : 's'}</span>
+          <span class="val">${p.points.toLocaleString()}</span>
+        </div>`).join('')
+    : '<div class="empty">No scores recorded yet. Be the first.</div>';
+
+  return `
+    <div class="board">
+      <div class="board-head">
+        <span class="emoji">🏆</span>
+        <div>
+          <h3>Overall Leaderboard</h3>
+          <div class="sub">Placement points across all ${d.totalGames} games</div>
+        </div>
+      </div>
+      ${rows}
+      <div class="board-stats">
+        <span class="pill">Each game awards <b>100</b> points for 1st, scaling down by placement</span>
+        <span class="pill">Minimum <b>10</b> for playing</span>
+      </div>
+    </div>`;
+}
+
+function gameBoard(id, d) {
+  const g = GAMES[id];
+  const s = d.games[id];
+  const showWave = !!g.category.showWave;
+  const me = s && s.me;
+
+  const rows = s && s.top.length
+    ? s.top.map(r => `
+        <div class="row ${r.isMe ? 'me' : ''}">
+          <span class="pos">${medalFor(r.rank)}</span>
+          <span class="who">${esc(r.username)}${r.isMe ? '<span class="tagme">YOU</span>' : ''}</span>
+          ${showWave ? `<span class="extra">wave ${r.wave}</span>` : `<span class="extra">zone ${r.wave}</span>`}
+          <span class="val">${r.score.toLocaleString()}</span>
+        </div>`).join('')
+    : '<div class="empty">Nobody has scored here yet. Go claim it. 🥇</div>';
+
+  const yours = me
+    ? `<div class="board-stats">
+         <span class="pill">Your best <b>${me.score.toLocaleString()}</b></span>
+         <span class="pill">Rank <b>#${me.rank}</b> of ${me.players}</span>
+         <span class="pill">${showWave ? 'Wave' : 'Zone'} <b>${me.wave}</b></span>
+         <span class="pill">Worth <b>${me.points}</b> points</span>
+       </div>`
+    : `<div class="board-stats"><span class="pill">You haven't played this one yet</span></div>`;
+
+  return `
+    <div class="board">
+      <div class="board-head">
+        <span class="emoji">${g.emoji}</span>
+        <div>
+          <h3>${esc(g.name)}</h3>
+          <div class="sub">${g.category.name} · ${s ? s.players : 0} player${s && s.players === 1 ? '' : 's'}</div>
+        </div>
+        <div class="right"><a class="play" href="/games/${id}/">Play ▶</a></div>
+      </div>
+      ${rows}
+      ${yours}
+    </div>`;
+}
+
+function paint() {
+  document.querySelectorAll('.tab-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.tab === active));
+
+  const panel = document.getElementById('panel');
+  if (active === 'overall') {
+    panel.innerHTML = overallBoard(DATA) +
+      '<h2 class="section-title" style="margin-top:30px">Every Game</h2>' +
+      '<div class="stack">' + ORDERED.map(id => gameBoard(id, DATA)).join('') + '</div>';
+  } else {
+    panel.innerHTML = gameBoard(active, DATA);
+  }
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ---------- boot ----------
+
+async function init() {
+  let d;
+  try {
+    d = await fetch('/api/stats').then(r => r.ok ? r.json() : Promise.reject(r.status));
+  } catch (err) {
+    if (err === 401) { location.href = '/login'; return; }
+    document.getElementById('panel').innerHTML =
+      '<div class="loading">Couldn\'t load stats. Refresh to try again.</div>';
+    return;
+  }
+  DATA = d;
+  meSummary(d);
+  tabs();
+  paint();
+}
+
+document.getElementById('logout').onclick = async () => {
+  await fetch('/api/logout', { method: 'POST' });
+  location.href = '/login';
+};
+
+init();
+</script>
+</body>
+</html>

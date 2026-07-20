@@ -58,22 +58,40 @@ npm start
    `/data`, and set the environment variable `DATA_DIR=/data`. Without this,
    accounts and scores reset on each redeploy.
 
+## Stats
+
+`/stats` shows, for the signed-in user:
+
+- an **overall leaderboard** across every game,
+- a **per-game leaderboard** (top 10) with your rank and best,
+- your own summary — points, games played, and medal counts.
+
+Cross-game ranking can't just sum raw scores, because a tower defense score and
+a runner's metre count aren't the same unit — summing them would silently make
+one category worth more than the other. Instead each game awards **placement
+points**: 100 for 1st, scaling down by where you placed among that game's
+players, with a floor of 10 for having played at all. Overall rank is the sum,
+so it rewards both placing well and playing broadly.
+
+The formula is `placementPoints()` in [server.js](server.js) if you want to
+weight it differently.
+
 ## Adding a new game
 
 1. Create `public/games/<game-id>/index.html` (copy an existing game's shell
    from the same category).
 2. Add a `config.js` — or write a whole custom game; anything static works.
-3. Add the game id to its category in `CATEGORY_GAMES` in [server.js](server.js)
-   (enables score saving).
-4. Add a card entry to that category's `games` list in `CATEGORIES` in
-   [public/index.html](public/index.html).
+3. Add an entry to that category's `games` list in
+   [public/js/catalog.js](public/js/catalog.js).
+
+That last file is the single source of truth: the hub, the stats page and the
+server's score API all read from it, so there's no second list to keep in sync.
 
 ## Adding a new category
 
 1. Write an engine in `public/games/engine/` (or skip it if the games are
    one-offs).
-2. Add an entry to `CATEGORIES` in [public/index.html](public/index.html):
+2. Add an entry to [public/js/catalog.js](public/js/catalog.js):
    `{ id, name, badge, games: [...] }`. Set `showWave: true` if best scores
    should read "1,234 (wave 5)" rather than just the number. A category with
    an empty `games` array renders its `soon` note instead of a grid.
-3. Add the matching key to `CATEGORY_GAMES` in [server.js](server.js).
