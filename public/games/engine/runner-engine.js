@@ -763,8 +763,18 @@
           ctx.shadowBlur = 0;
         }
         if (o.emoji) {
+          /* Colour emoji are painted with the current fillStyle's ALPHA. The
+           * last thing drawGround sets is a near-transparent stripe colour, so
+           * without forcing an opaque fill here every obstacle renders at ~5%
+           * alpha — visible in the data, invisible on screen. Force it opaque
+           * and add a soft shadow so it reads against busy parallax. */
+          ctx.globalAlpha = 1;
+          ctx.fillStyle = '#000';
+          ctx.shadowColor = 'rgba(0,0,0,0.55)';
+          ctx.shadowBlur = 6;
           ctx.font = Math.min(o.w, o.h) * 1.15 + 'px system-ui, sans-serif';
           ctx.fillText(o.emoji, x + o.w / 2, o.y + o.h / 2);
+          ctx.shadowBlur = 0;
         }
       }
     }
@@ -780,6 +790,8 @@
         const bob = Math.sin(c.t) * 3;
         ctx.save();
         ctx.globalAlpha = 0.9;
+        // opaque fill or the emoji inherits drawGround's transparent stripe alpha
+        ctx.fillStyle = th.coinColor || '#ffd166';
         ctx.shadowColor = th.coinColor || '#ffd166';
         ctx.shadowBlur = 14;
         ctx.font = '20px system-ui, sans-serif';
