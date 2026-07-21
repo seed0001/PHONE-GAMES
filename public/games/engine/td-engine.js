@@ -315,6 +315,10 @@
       this.pathCells = new Set();
       this.buildPathCells();
 
+      // which towers this player has already seen the intro card for — persists
+      // across sessions, so the card only ever fires on a genuine first pick
+      this.seenTowers = this.loadSeenTowers();
+
       this.buildFxLayer();
       this.reset();
       this.buildTowerBar();
@@ -728,20 +732,98 @@
           this.hidePanel();
           if (this.placing === t) {
             this.placing = null;
-            SFX.play('ui');
-          } else if (this.gold >= t.cost) {
-            this.placing = t;
+            this.hidePlaceCard();
             SFX.play('ui');
           } else {
-            SFX.play('deny');
-            btn.classList.remove('shake');
-            void btn.offsetWidth;
-            btn.classList.add('shake');
+            // fires on the very first pick of a tower, whether or not it is
+            // affordable — it is a "here's what this does" card, not a receipt
+            this.maybeShowPlaceCard(t);
+            if (this.gold >= t.cost) {
+              this.placing = t;
+              SFX.play('ui');
+            } else {
+              SFX.play('deny');
+              btn.classList.remove('shake');
+              void btn.offsetWidth;
+              btn.classList.add('shake');
+            }
           }
           this.updateBarAfford();
         };
         bar.appendChild(btn);
       }
+    }
+
+    // ---------- first-use tower card ----------
+
+    seenTowersKey() { return 'pa-seen-towers-' + this.cfg.id; }
+    loadSeenTowers() {
+      try { return new Set(JSON.parse(localStorage.getItem(this.seenTowersKey()) || '[]')); }
+      catch { return new Set(); }
+    }
+    markTowerSeen(key) {
+      this.seenTowers.add(key);
+      try { localStorage.setItem(this.seenTowersKey(), JSON.stringify([...this.seenTowers])); }
+      catch { /* private mode / no storage — card just shows again next time */ }
+    }
+
+    // one line of headline stats, phrased per tower role
+    towerStatLine(t) {
+      if (t.type === 'support') return `🛡️ Shield +${t.shieldGrant} per tower · Range ${t.range.toFixed(1)}`;
+      if (t.type === 'repair') return `🔧 Repairs ${t.repairRate}/s · Range ${t.range.toFixed(1)}`;
+      return `⚔️ DMG ${t.dmg} · Range ${t.range.toFixed(1)} · ${t.rate.toFixed(1)}/s`;
+    }
+
+    // small pills for the things that make a tower special
+    towerTags(t) {
+      const tags = [];
+      const kind = {
+        bullet: 'Single target', splash: 'Splash', chain: 'Chain', beam: 'Beam',
+        slow: 'Slows', support: 'Support', repair: 'Repair'
+      }[t.type];
+      if (kind) tags.push(kind);
+      if (t.type === 'splash' && t.splashRadius) tags.push(`Blast ${t.splashRadius}`);
+      if (t.type === 'chain' && t.chainCount) tags.push(`Arcs ${t.chainCount + 1}`);
+      if (t.type === 'slow' && t.slowFactor) tags.push(`${Math.round((1 - t.slowFactor) * 100)}% slow`);
+      if (t.hp) tags.push(`❤️ ${t.hp}`);
+      if (t.shield) tags.push(`🛡️ ${t.shield}`);
+      return tags.map(x => `<span class="pc-tag">${x}</span>`).join('');
+    }
+
+    maybeShowPlaceCard(t) {
+      if (this.seenTowers.has(t.key)) return;
+      this.markTowerSeen(t.key);
+      this.showPlaceCard(t);
+    }
+
+    showPlaceCard(t) {
+      let card = document.getElementById('place-card');
+      if (!card) {
+        card = document.createElement('div');
+        card.id = 'place-card';
+        this.wrap.appendChild(card);
+      }
+      card.style.setProperty('--pc-color', t.projColor);
+      card.innerHTML = `
+        <button class="pc-x" aria-label="Dismiss">×</button>
+        <div class="pc-head"><span class="pc-emoji">${t.emoji}</span><b>${t.name}</b><span class="pc-cost">🪙${t.cost}</span></div>
+        <div class="pc-stats">${this.towerStatLine(t)}</div>
+        <div class="pc-tags">${this.towerTags(t)}</div>
+        <div class="pc-desc">${t.desc}</div>
+        <div class="pc-hint">Tap an open tile to build · this card only shows the first time</div>`;
+      card.hidden = false;
+      card.classList.remove('in');
+      void card.offsetWidth;
+      card.classList.add('in');
+      card.querySelector('.pc-x').onclick = (e) => { e.stopPropagation(); this.hidePlaceCard(); };
+      clearTimeout(this._pcTimer);
+      this._pcTimer = setTimeout(() => this.hidePlaceCard(), 6000);
+    }
+
+    hidePlaceCard() {
+      clearTimeout(this._pcTimer);
+      const card = document.getElementById('place-card');
+      if (card) card.hidden = true;
     }
 
     updateBarAfford() {
@@ -780,6 +862,7 @@
     }
 
     onTap(px, py) {
+      this.hidePlaceCard();   // any board tap clears the intro card
       const [c, r] = this.cellAt(px, py);
       if (this.placing) {
         if (this.buildable(c, r) && this.gold >= this.placing.cost) {

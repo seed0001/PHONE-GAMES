@@ -216,6 +216,68 @@ canvas {
 #tower-panel #tp-sell { background: #3a3a5c; }
 #tower-panel #tp-rep { background: #2f6b57; }
 
+/* first-use tower card — shown once per tower, then never again */
+#place-card {
+  position: absolute;
+  left: 50%;
+  bottom: 8px;
+  transform: translateX(-50%);
+  width: min(94%, 400px);
+  background: rgba(20, 20, 36, 0.97);
+  border: 1px solid var(--pc-color, var(--td-border));
+  border-radius: 14px;
+  padding: 12px 14px;
+  z-index: 6;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.55), 0 0 22px -6px var(--pc-color, transparent);
+}
+#place-card[hidden] { display: none; }
+#place-card.in { animation: pc-in 0.24s ease-out; }
+@keyframes pc-in {
+  0%   { opacity: 0; transform: translateX(-50%) translateY(14px) scale(0.94); }
+  100% { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+}
+#place-card .pc-x {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  border: 0;
+  background: transparent;
+  color: var(--td-muted);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 6px;
+}
+#place-card .pc-x:active { transform: scale(0.9); }
+#place-card .pc-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 16px;
+  padding-right: 22px;
+}
+#place-card .pc-emoji { font-size: 22px; }
+#place-card .pc-cost { margin-left: auto; color: #ffd700; font-size: 14px; font-weight: 700; }
+#place-card .pc-stats { color: var(--td-text); font-size: 12px; margin: 6px 0; font-weight: 600; }
+#place-card .pc-tags { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 8px; }
+#place-card .pc-tag {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--pc-color, var(--td-border));
+  color: var(--td-text);
+}
+#place-card .pc-desc { color: var(--td-muted); font-size: 12px; line-height: 1.4; margin-bottom: 8px; }
+#place-card .pc-hint {
+  font-size: 10px;
+  color: var(--td-muted);
+  opacity: 0.8;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  padding-top: 7px;
+}
+
 /* bottom bar */
 #td-bottom {
   padding: 8px 10px calc(10px + env(safe-area-inset-bottom));
