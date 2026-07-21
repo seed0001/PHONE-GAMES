@@ -402,18 +402,24 @@
       this.pickups = this.pickups.filter(p => !p.got && p.x + 20 > this.worldX - 60);
 
       // ---- collisions ----
+      // The player sits at a fixed screen x while the world scrolls, so
+      // obstacles and pickups are stored in world space. Convert each to the
+      // player's screen space (subtract worldX) before testing overlap —
+      // exactly as the renderer does — otherwise nothing ever collides.
       const box = this.playerBox();
       for (const o of this.obstacles) {
+        const ox = o.x - this.worldX;
         const sx = o.w * HIT_SHRINK, sy = o.h * HIT_SHRINK;
-        if (box.x < o.x + o.w - sx && box.x + box.w > o.x + sx &&
+        if (box.x < ox + o.w - sx && box.x + box.w > ox + sx &&
             box.y < o.y + o.h - sy && box.y + box.h > o.y + sy) {
           return this.crash(o);
         }
       }
       for (const p of this.pickups) {
         p.t += dt * 5;
+        const px = p.x - this.worldX;
         const cx = box.x + box.w / 2, cy = box.y + box.h / 2;
-        if (Math.abs(cx - p.x) < p.r + box.w / 2 && Math.abs(cy - p.y) < p.r + box.h / 2) {
+        if (Math.abs(cx - px) < p.r + box.w / 2 && Math.abs(cy - p.y) < p.r + box.h / 2) {
           p.got = true;
           this.coins++;
           this.combo++;
