@@ -199,6 +199,7 @@
       const h = Math.min(availH, 460);
       const w = Math.min(this.wrap.clientWidth || 360, 720);
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      this.dpr = dpr;
       this.canvas.style.width = w + 'px';
       this.canvas.style.height = h + 'px';
       this.canvas.width = Math.round(w * dpr);
@@ -896,12 +897,13 @@
     // ---------- rendering ----------
 
     draw() {
-      const ctx = this.ctx, S = this.S;
+      const ctx = this.ctx, S = this.S, dpr = this.dpr || 1;
       const W = this.viewW, H = DH;
       ctx.save();
       const sx = this.shake > 0 ? rand(-1, 1) * this.shake * 0.4 : 0;
       const sy = this.shake > 0 ? rand(-1, 1) * this.shake * 0.4 : 0;
-      ctx.setTransform(S, 0, 0, S, sx * S, sy * S);
+      // scale design units -> device pixels (S css-px per unit, dpr device-px per css-px)
+      ctx.setTransform(S * dpr, 0, 0, S * dpr, sx * S * dpr, sy * S * dpr);
 
       this.drawStage(ctx, W, H);
 
@@ -927,9 +929,10 @@
 
       ctx.restore();
 
-      // full-screen white flash on big moments
+      // full-screen white flash on big moments (identity transform = device px)
       if (this.flash > 0) {
         ctx.save();
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
         ctx.globalAlpha = this.flash * 0.5;
         ctx.fillStyle = '#fff';
         ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
