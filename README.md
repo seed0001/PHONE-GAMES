@@ -137,9 +137,16 @@ npm start
 1. Push this repo to GitHub.
 2. In Railway: **New Project → Deploy from GitHub repo** and pick this repo.
    `railway.json` handles the rest (Nixpacks build, `node server.js` start).
-3. **Persistence (recommended):** add a Volume to the service, mount it at
-   `/data`, and set the environment variable `DATA_DIR=/data`. Without this,
-   accounts and scores reset on each redeploy.
+3. **Persistence (required, or you lose everything on redeploy):** Railway
+   gives each deploy a fresh, ephemeral filesystem, so the SQLite database is
+   wiped on every redeploy unless it lives on a **Volume**. In Railway open the
+   service → **Settings → Volumes → add a Volume** (any mount path, e.g.
+   `/data`). That's the whole fix — [`db.js`](db.js) auto-detects the volume via
+   Railway's `RAILWAY_VOLUME_MOUNT_PATH`, so **no environment variable is
+   needed**. (You can still force a location with `DATA_DIR` if you want to.)
+
+   The startup logs tell you which mode you're in: `Persistent storage → …` once
+   a volume is attached, or a loud `⚠️ DATA IS NOT PERSISTENT` warning until then.
 
 ## Stats
 
