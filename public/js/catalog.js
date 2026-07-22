@@ -64,6 +64,21 @@
       ]
     },
     {
+      id: 'fighting', name: 'Fighting', badge: 'Fighter', showWave: true,
+      games: [
+        {
+          id: 'dragon-dojo', name: 'Dragon Dojo', emoji: '🥋',
+          desc: 'Side-view martial-arts brawler. Climb a ladder of dojo masters, best of 3.',
+          art: 'linear-gradient(135deg,#6e3a1c,#241009)'
+        },
+        {
+          id: 'neon-knockout', name: 'Neon Knockout', emoji: '🥊',
+          desc: 'Back-alley cyber fight. Punch, kick and plasma-bolt your way up the neon strip.',
+          art: 'linear-gradient(135deg,#2a0740,#06060f)'
+        }
+      ]
+    },
+    {
       id: 'coming-soon', name: 'More Coming Soon', games: [],
       soon: "New games drop here as they're added. Check back soon! 🚧"
     }
