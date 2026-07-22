@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Neon Knockout — Pocket Arcade</title>
+<link rel="stylesheet" href="/games/engine/fighter.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🥊</text></svg>">
+<style>
+  :root {
+    --ft-bg: #06060f;
+    --ft-panel: #12102a;
+    --ft-border: #2f2a5c;
+    --ft-accent: #ff2fb9;
+  }
+</style>
+</head>
+<body>
+<div id="game-root">
+  <header id="ft-top">
+    <a class="home" href="/">←</a>
+    <div class="fighter-hud left">
+      <div class="name" id="ui-p1name">YOU</div>
+      <div class="hpbar"><div class="hp" id="ui-p1hp"></div></div>
+      <div class="meter"><div class="mv" id="ui-p1meter"></div></div>
+    </div>
+    <div class="round-info">
+      <div class="timer" id="ui-timer">60</div>
+      <div class="pips" id="ui-pips"></div>
+      <div class="score">⭐ <b id="ui-score">0</b></div>
+    </div>
+    <div class="fighter-hud right">
+      <div class="name" id="ui-p2name">RIVAL</div>
+      <div class="hpbar"><div class="hp" id="ui-p2hp"></div></div>
+      <div class="meter"><div class="mv" id="ui-p2meter"></div></div>
+    </div>
+  </header>
+  <div id="canvas-wrap">
+    <canvas id="game"></canvas>
+    <div id="fight-banner"></div>
+  </div>
+  <div id="ft-bottom">
+    <div class="pad pad-move">
+      <button id="btn-jump">⤒</button>
+      <button id="btn-left">◀</button>
+      <button id="btn-right">▶</button>
+      <button id="btn-down">⤓</button>
+    </div>
+    <button id="btn-pause">⏸</button>
+    <div class="pad pad-act">
+      <button id="btn-punch">👊</button>
+      <button id="btn-kick">🦵</button>
+      <button id="btn-block">🛡</button>
+      <button id="btn-special">⚡</button>
+    </div>
+  </div>
+  <div class="hint">◀▶ move · ⤒ jump · ⤓ crouch · hold 🛡 block · 👊 punch · 🦵 kick · ⚡ special</div>
+  <div id="overlay" hidden></div>
+</div>
+<script src="/games/engine/fighter-engine.js"></script>
+<script src="config.js"></script>
+</body>
+</html>

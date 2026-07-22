@@ -1,7 +1,7 @@
 {
   "name": "pocket-arcade",
   "version": "1.0.0",
-  "description": "Browser game hub — themed tower defense and endless runner games",
+  "description": "Browser game hub — themed tower defense, endless runner and fighting games",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"

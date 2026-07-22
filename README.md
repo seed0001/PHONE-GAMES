@@ -85,6 +85,39 @@ Score is distance in metres plus pickups.
 Obstacle spacing is generated from the current run speed and the engine's jump
 airtime, so the game never spawns a gap that is physically unclearable.
 
+### 🥊 Fighting — [`engine/fighter-engine.js`](public/games/engine/fighter-engine.js)
+
+| Game | Theme |
+|------|-------|
+| 🥋 Dragon Dojo | Martial-arts tournament — a wandering student vs a ladder of dojo masters |
+| 🥊 Neon Knockout | Back-alley cyber brawl — augmented street fighters up the neon strip |
+
+Side-view one-on-one fighting against the computer. It plays as an **arcade
+ladder**: best-of-3 against each opponent, and every match won sends you to a
+tougher one who hits harder, blocks smarter and reacts quicker. One lost match
+ends the run; your score is what you banked climbing. Best scores read
+`14,800 (wave 5)`, where the "wave" is how deep into the ladder you reached.
+
+Controls are a d-pad plus four buttons: **◀▶** walk (forward is quicker than
+backing off), **⤒** jump, **⤓** crouch, hold **🛡** to guard, **👊** punch,
+**🦵** kick, **⚡** special. Holding *back* also guards, the classic way.
+
+**The move set has rock-paper-scissors depth.** Crouch + kick becomes a low
+**sweep** that must be blocked crouching; a jump-in attack hits **overhead**
+and must be blocked standing; everything else is **mid** and blocks either way.
+So blocking is a read, not a button you hold forever. Landing hits builds a
+**super meter**; at 50 you can throw a **special** — usually a projectile that
+travels the screen and is itself blockable.
+
+Fighters are drawn from canvas primitives with a small IK-lite skeleton — no
+sprite assets — so a `config.js` is just numbers and colours: a stage theme,
+your fighter, and the roster of opponents. The engine supplies the default
+moves, physics, hit detection, the round/match loop and the AI; a fighter lists
+only what makes it distinct (colours, a stat or two, the odd move tweak).
+Difficulty (AI reaction time, aggression, block skill, projectile use and enemy
+health) scales with how far up the ladder you are, and keeps climbing when the
+roster loops.
+
 ## Run locally
 
 ```bash
